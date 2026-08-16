@@ -7,4 +7,4 @@ build/
 *.log
 coverage/
 
-database OLD/
+databaseOLD/
