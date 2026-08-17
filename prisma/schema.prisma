@@ -12,11 +12,12 @@ model Category {
   slug        String    @unique
   description String?
   products    Product[]
+  legacyProducts LegacyProduct[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 }
 
-model Product {
+model LegacyProduct {
   id          String   @id @default(uuid())
   name        String
   slug        String   @unique
@@ -28,12 +29,50 @@ model Product {
   stockStatus String   @default("instock")
   quantity    Int      @default(0)
   
-  // Cloudinary image URLs
   featuredImage String?
   gallery       String[]
 
   categoryId  String?
   category    Category? @relation(fields: [categoryId], references: [id])
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("LegacyProduct")
+}
+
+model Product {
+  id          String    @id @default(uuid())
+  name        String
+  slug        String    @unique
+  description String?
+  excerpt     String?
+  
+  categoryId  String?
+  category    Category? @relation(fields: [categoryId], references: [id])
+  
+  variants    ProductVariant[]
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model ProductVariant {
+  id          String   @id @default(uuid())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  name        String?  // e.g., "White - UK 06"
+  sku         String?  @unique
+  price       Float
+  salePrice   Float?
+  stockStatus String   @default("instock")
+  quantity    Int      @default(0)
+  color       String?
+  size        String?
+  
+  featuredImage String?
+  gallery       String[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
