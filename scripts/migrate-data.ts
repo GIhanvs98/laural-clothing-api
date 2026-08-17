@@ -4,7 +4,14 @@ import * as path from 'path';
 import csv from 'csv-parser';
 import * as readline from 'readline';
 
-const prisma = new PrismaClient();
+import { PrismaPg } from '@prisma/adapter-pg';
+import { Pool } from 'pg';
+import * as dotenv from 'dotenv';
+dotenv.config();
+
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const adapter = new PrismaPg(pool);
+const prisma = new PrismaClient({ adapter });
 const DB_DIR = path.join(__dirname, '../databaseOLD');
 const CSV_FILE = path.join(DB_DIR, 'wc-product-export-9-8-2026-1786290310470.csv');
 const SQL_FILE = path.join(DB_DIR, 'lauralclothing_wp605.sql');
