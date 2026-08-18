@@ -78,6 +78,8 @@ model ProductVariant {
   inventoryItem    InventoryItem?
   transactions     InventoryTransaction[]
   stockTransfers   StockTransfer[]
+  cartItems        CartItem[]
+  orderItems       OrderItem[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -164,4 +166,104 @@ model CollectionProduct {
   addedAt      DateTime   @default(now())
 
   @@id([collectionId, productId])
+}
+
+model Customer {
+  id        String    @id @default(uuid())
+  phone     String    @unique
+  email     String?   @unique
+  firstName String?
+  lastName  String?
+  isGuest   Boolean   @default(true)
+  
+  addresses Address[]
+  carts     Cart[]
+  orders    Order[]
+  
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Address {
+  id          String   @id @default(uuid())
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id])
+  
+  type        String   @default("SHIPPING") // SHIPPING, BILLING
+  firstName   String
+  lastName    String
+  addressLine1 String
+  addressLine2 String?
+  city        String
+  postalCode  String?
+  phone       String
+  
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Cart {
+  id          String     @id @default(uuid())
+  sessionId   String?    @unique // For guest carts
+  customerId  String?
+  customer    Customer?  @relation(fields: [customerId], references: [id])
+  
+  status      String     @default("ACTIVE") // ACTIVE, ABANDONED, CONVERTED
+  items       CartItem[]
+  
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model CartItem {
+  id        String   @id @default(uuid())
+  cartId    String
+  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  variantId String
+  variant   ProductVariant @relation(fields: [variantId], references: [id])
+  
+  quantity  Int      @default(1)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([cartId, variantId])
+}
+
+model Order {
+  id              String      @id @default(uuid())
+  orderNumber     String      @unique
+  customerId      String
+  customer        Customer    @relation(fields: [customerId], references: [id])
+  
+  status          String      @default("PENDING") // PENDING, PAID, PROCESSING, DISPATCHED, DELIVERED, CANCELLED
+  paymentMethod   String?     // KOKO, MINTPAY, ONEPAY, PAYZY, COD
+  paymentStatus   String      @default("UNPAID") // UNPAID, PAID, FAILED, REFUNDED
+  
+  subtotal        Float
+  shippingFee     Float
+  tax             Float       @default(0)
+  total           Float
+  
+  shippingAddress Json        // Snapshot of address at time of order
+  billingAddress  Json?
+  
+  items           OrderItem[]
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+model OrderItem {
+  id              String   @id @default(uuid())
+  orderId         String
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variantId       String
+  variant         ProductVariant @relation(fields: [variantId], references: [id])
+  
+  quantity        Int
+  priceAtPurchase Float    // To lock in the price at checkout
+  
+  createdAt       DateTime @default(now())
 }
