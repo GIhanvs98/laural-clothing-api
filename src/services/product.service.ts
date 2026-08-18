@@ -13,7 +13,7 @@ const s3Client = new S3Client({
   forcePathStyle: true,
 });
 
-async function signImageUrl(url: string | null): Promise<string | null> {
+export async function signImageUrl(url: string | null): Promise<string | null> {
   if (!url) return null;
   if (!url.includes('t3.storageapi.dev') && !url.includes(process.env.AWS_S3_ENDPOINT || '')) return url;
   
@@ -54,18 +54,26 @@ export class ProductService {
     skip?: number;
     take?: number;
     search?: string;
+    category?: string;
   }) {
-    const { skip = 0, take = 50, search } = params;
+    const { skip = 0, take = 50, search, category } = params;
 
-    const where: Prisma.ProductWhereInput = search
-      ? {
-          OR: [
-            { name: { contains: search, mode: 'insensitive' } },
-            { description: { contains: search, mode: 'insensitive' } },
-            { variants: { some: { sku: { contains: search, mode: 'insensitive' } } } },
-          ],
-        }
-      : {};
+    const where: Prisma.ProductWhereInput = {
+      ...(search
+        ? {
+            OR: [
+              { name: { contains: search, mode: 'insensitive' } },
+              { description: { contains: search, mode: 'insensitive' } },
+              { variants: { some: { sku: { contains: search, mode: 'insensitive' } } } },
+            ],
+          }
+        : {}),
+      ...(category
+        ? {
+            category: { slug: category }
+          }
+        : {}),
+    };
 
     const [products, total] = await Promise.all([
       prisma.product.findMany({
