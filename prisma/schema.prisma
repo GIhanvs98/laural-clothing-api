@@ -94,11 +94,28 @@ model Branch {
   type        String   @default("RETAIL") // WAREHOUSE | RETAIL
   isActive    Boolean  @default(true)
   
+  managerId   String?  @unique
+  manager     User?    @relation("BranchManager", fields: [managerId], references: [id])
+  staff       User[]   @relation("BranchStaff")
+  posTerminals PosTerminal[]
+  orders      Order[]
+
   inventory    InventoryItem[]
   transactions InventoryTransaction[]
   transfersOut StockTransfer[] @relation("FromBranch")
   transfersIn  StockTransfer[] @relation("ToBranch")
 
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model PosTerminal {
+  id          String   @id @default(uuid())
+  name        String
+  status      String   @default("ACTIVE") // ACTIVE, INACTIVE, MAINTENANCE
+  branchId    String
+  branch      Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -160,8 +177,18 @@ model User {
   email     String   @unique
   password  String
   name      String?
+  role      Role     @default(STAFF)
+  branchId  String?
+  branch    Branch?  @relation("BranchStaff", fields: [branchId], references: [id])
+  managedBranch Branch? @relation("BranchManager")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+enum Role {
+  SUPER_ADMIN
+  MANAGER
+  STAFF
 }
 
 enum CollectionType {
@@ -277,6 +304,9 @@ model Order {
   shippingAddress Json        // Snapshot of address at time of order
   billingAddress  Json?
   
+  branchId        String?
+  branch          Branch?     @relation(fields: [branchId], references: [id])
+
   items           OrderItem[]
   
   createdAt       DateTime    @default(now())

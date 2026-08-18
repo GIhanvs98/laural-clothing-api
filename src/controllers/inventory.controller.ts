@@ -12,6 +12,36 @@ export const getBranches = async (req: Request, res: Response) => {
   }
 };
 
+// POST /api/inventory/branches
+export const createBranch = async (req: Request, res: Response) => {
+  try {
+    const branch = await inventoryService.createBranch(req.body);
+    res.status(201).json(branch);
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+};
+
+// PUT /api/inventory/branches/:id
+export const updateBranch = async (req: Request, res: Response) => {
+  try {
+    const branch = await inventoryService.updateBranch(req.params.id as string, req.body);
+    res.json(branch);
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+};
+
+// DELETE /api/inventory/branches/:id
+export const deleteBranch = async (req: Request, res: Response) => {
+  try {
+    await inventoryService.deleteBranch(req.params.id as string);
+    res.json({ success: true });
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+};
+
 // GET /api/inventory
 export const getInventory = async (req: Request, res: Response) => {
   try {
