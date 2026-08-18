@@ -1,18 +1,29 @@
 import prisma from '../config/prisma';
+import { redisClient } from '../config/redis';
 
 export const checkoutService = {
   /**
    * Calculates the checkout totals for a given cart and shipping address.
    */
-  async calculateCheckout(cartId: string, address: any) {
-    const cart = await prisma.cart.findUnique({
-      where: { id: cartId },
-      include: {
-        items: {
-          include: { variant: true },
+  async calculateCheckout(cartId: string, address: any, isGuest: boolean = true) {
+    let cart;
+
+    if (isGuest) {
+      const redisKey = `cart:${cartId}`; // cartId is sessionId for guests
+      const cartStr = await redisClient.get(redisKey);
+      if (!cartStr) throw new Error('Guest cart not found');
+      cart = JSON.parse(cartStr);
+    } else {
+      cart = await prisma.cart.findUnique({
+        where: { id: cartId },
+        include: {
+          items: {
+            include: { variant: true },
+          },
         },
-      },
-    });
+      });
+      if (!cart) throw new Error('Cart not found');
+    }
 
     if (!cart || cart.items.length === 0) {
       throw new Error('Cart is empty or not found');
@@ -23,13 +34,9 @@ export const checkoutService = {
       subtotal += item.quantity * (item.variant.salePrice ?? item.variant.price);
     });
 
-    // TODO: Implement complex shipping logic based on address.city or postalCode
-    // For now, flat rate of Rs. 400
+    // Flat shipping rate for now
     const shippingFee = 400;
-    
-    // TODO: Implement tax logic if needed
     const tax = 0;
-    
     const total = subtotal + shippingFee + tax;
 
     return {
@@ -45,12 +52,23 @@ export const checkoutService = {
    * Initiates checkout, resolves identity, and creates an order.
    */
   async initiateCheckout(cartId: string, customerData: { phone: string; email?: string; firstName?: string; lastName?: string; isGuest?: boolean }, shippingAddress: any, paymentMethod?: string) {
-    const cart = await prisma.cart.findUnique({
-      where: { id: cartId },
-      include: {
-        items: { include: { variant: true } },
-      },
-    });
+    const isGuest = customerData.isGuest !== false;
+    let cart;
+
+    if (isGuest) {
+      const redisKey = `cart:${cartId}`;
+      const cartStr = await redisClient.get(redisKey);
+      if (!cartStr) throw new Error('Guest cart not found');
+      cart = JSON.parse(cartStr);
+    } else {
+      cart = await prisma.cart.findUnique({
+        where: { id: cartId },
+        include: {
+          items: { include: { variant: true } },
+        },
+      });
+      if (!cart) throw new Error('Cart not found');
+    }
 
     if (!cart || cart.items.length === 0) {
       throw new Error('Cart is empty or not found');
@@ -68,11 +86,10 @@ export const checkoutService = {
           email: customerData.email,
           firstName: customerData.firstName,
           lastName: customerData.lastName,
-          isGuest: customerData.isGuest !== false,
+          isGuest: isGuest,
         },
       });
     } else if (customerData.email && !customer.email) {
-      // Update email if not present
       customer = await prisma.customer.update({
         where: { id: customer.id },
         data: { email: customerData.email },
@@ -80,10 +97,10 @@ export const checkoutService = {
     }
 
     // 2. Calculation
-    const totals = await this.calculateCheckout(cartId, shippingAddress);
+    const totals = await this.calculateCheckout(cartId, shippingAddress, isGuest);
 
     // 3. Create Order
-    const orderNumber = `LC-${Date.now().toString().slice(-6)}`; // Simple unique generator
+    const orderNumber = `LC-${Date.now().toString().slice(-6)}`;
     
     const order = await prisma.order.create({
       data: {
@@ -110,11 +127,15 @@ export const checkoutService = {
       },
     });
 
-    // 4. Mark Cart as Converted
-    await prisma.cart.update({
-      where: { id: cartId },
-      data: { status: 'CONVERTED' },
-    });
+    // 4. Clean up Cart
+    if (isGuest) {
+      await redisClient.del(`cart:${cartId}`);
+    } else {
+      await prisma.cart.update({
+        where: { id: cartId },
+        data: { status: 'CONVERTED' },
+      });
+    }
 
     return order;
   },

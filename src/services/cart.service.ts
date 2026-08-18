@@ -1,133 +1,179 @@
 import prisma from '../config/prisma';
+import { redisClient } from '../config/redis';
+import crypto from 'crypto';
+
+const GUEST_CART_TTL = 7 * 24 * 60 * 60; // 7 days
+
+// Helper to get fully hydrated variant data for Redis cache
+async function getVariantWithProduct(variantId: string) {
+  return prisma.productVariant.findUnique({
+    where: { id: variantId },
+    include: { product: { include: { variants: true } } },
+  });
+}
 
 export const cartService = {
   /**
-   * Retrieves a cart by sessionId or customerId, or creates a new one if it doesn't exist.
+   * Retrieves a cart by sessionId (Redis) or customerId (DB)
    */
   async getOrCreateCart(sessionId?: string, customerId?: string) {
-    if (!sessionId && !customerId) {
-      throw new Error('Either sessionId or customerId must be provided');
-    }
-
-    const whereClause: any = { status: 'ACTIVE' };
     if (customerId) {
-      whereClause.customerId = customerId;
-    } else {
-      whereClause.sessionId = sessionId;
-    }
-
-    let cart = await prisma.cart.findFirst({
-      where: whereClause,
-      include: {
-        items: {
-          include: {
-            variant: {
-              include: {
-                product: true,
-              },
-            },
-          },
-        },
-      },
-    });
-
-    if (!cart) {
-      const data: any = { status: 'ACTIVE' };
-      if (customerId) data.customerId = customerId;
-      if (sessionId) data.sessionId = sessionId;
-
-      cart = await prisma.cart.create({
-        data,
-        include: {
-          items: {
-            include: {
-              variant: {
-                include: { product: true },
-              },
-            },
-          },
-        },
+      // Authenticated Cart -> DB
+      let cart = await prisma.cart.findFirst({
+        where: { customerId, status: 'ACTIVE' },
+        include: { items: { include: { variant: { include: { product: { include: { variants: true } } } } } } },
       });
+
+      if (!cart) {
+        cart = await prisma.cart.create({
+          data: { customerId, status: 'ACTIVE' },
+          include: { items: { include: { variant: { include: { product: { include: { variants: true } } } } } } },
+        });
+      }
+      return cart;
     }
 
-    return cart;
+    if (sessionId) {
+      // Guest Cart -> Redis
+      const redisKey = `cart:${sessionId}`;
+      const cartData = await redisClient.get(redisKey);
+      
+      if (cartData) {
+        return JSON.parse(cartData);
+      }
+
+      // Create new Redis Cart structure
+      const newCart = {
+        id: sessionId,
+        sessionId,
+        status: 'ACTIVE',
+        items: [],
+        createdAt: new Date().toISOString(),
+      };
+      await redisClient.setex(redisKey, GUEST_CART_TTL, JSON.stringify(newCart));
+      return newCart;
+    }
+
+    throw new Error('Either sessionId or customerId must be provided');
   },
 
   /**
    * Add an item to the cart. If the item already exists, updates the quantity.
    */
-  async addItem(cartId: string, variantId: string, quantity: number) {
+  async addItem(cartId: string, variantId: string, quantity: number, isGuest: boolean = false) {
     if (quantity <= 0) throw new Error('Quantity must be greater than zero');
+    
+    const variantData = await getVariantWithProduct(variantId);
+    if (!variantData) throw new Error('Variant not found');
 
-    const existingItem = await prisma.cartItem.findUnique({
-      where: {
-        cartId_variantId: { cartId, variantId },
-      },
-    });
+    if (!isGuest) {
+      // Authenticated Cart -> DB
+      const existingItem = await prisma.cartItem.findUnique({
+        where: { cartId_variantId: { cartId, variantId } },
+      });
 
-    if (existingItem) {
-      return prisma.cartItem.update({
-        where: { id: existingItem.id },
-        data: { quantity: existingItem.quantity + quantity },
+      if (existingItem) {
+        return prisma.cartItem.update({
+          where: { id: existingItem.id },
+          data: { quantity: existingItem.quantity + quantity },
+          include: { variant: { include: { product: true } } },
+        });
+      }
+
+      return prisma.cartItem.create({
+        data: { cartId, variantId, quantity },
         include: { variant: { include: { product: true } } },
       });
     }
 
-    return prisma.cartItem.create({
-      data: { cartId, variantId, quantity },
-      include: { variant: { include: { product: true } } },
-    });
+    // Guest Cart -> Redis
+    const redisKey = `cart:${cartId}`; // cartId is sessionId for guests
+    const cartStr = await redisClient.get(redisKey);
+    if (!cartStr) throw new Error('Guest cart not found');
+    
+    const cart = JSON.parse(cartStr);
+    const existingIndex = cart.items.findIndex((i: any) => i.variantId === variantId);
+    
+    let updatedItem;
+    if (existingIndex >= 0) {
+      cart.items[existingIndex].quantity += quantity;
+      updatedItem = cart.items[existingIndex];
+    } else {
+      updatedItem = {
+        id: crypto.randomUUID(),
+        cartId,
+        variantId,
+        quantity,
+        variant: variantData,
+      };
+      cart.items.push(updatedItem);
+    }
+
+    await redisClient.setex(redisKey, GUEST_CART_TTL, JSON.stringify(cart));
+    return updatedItem;
   },
 
   /**
    * Updates the quantity of a specific cart item.
    */
-  async updateItemQuantity(itemId: string, quantity: number) {
-    if (quantity <= 0) {
-      return prisma.cartItem.delete({ where: { id: itemId } });
+  async updateItemQuantity(cartId: string, itemId: string, quantity: number, isGuest: boolean = false) {
+    if (!isGuest) {
+      // Authenticated Cart -> DB
+      if (quantity <= 0) {
+        return prisma.cartItem.delete({ where: { id: itemId } });
+      }
+      return prisma.cartItem.update({
+        where: { id: itemId },
+        data: { quantity },
+        include: { variant: { include: { product: true } } },
+      });
     }
 
-    return prisma.cartItem.update({
-      where: { id: itemId },
-      data: { quantity },
-      include: { variant: { include: { product: true } } },
-    });
+    // Guest Cart -> Redis
+    const redisKey = `cart:${cartId}`;
+    const cartStr = await redisClient.get(redisKey);
+    if (!cartStr) throw new Error('Guest cart not found');
+
+    const cart = JSON.parse(cartStr);
+    if (quantity <= 0) {
+      cart.items = cart.items.filter((i: any) => i.id !== itemId);
+    } else {
+      const item = cart.items.find((i: any) => i.id === itemId);
+      if (item) item.quantity = quantity;
+    }
+
+    await redisClient.setex(redisKey, GUEST_CART_TTL, JSON.stringify(cart));
+    return true;
   },
 
   /**
    * Removes an item from the cart.
    */
-  async removeItem(itemId: string) {
-    return prisma.cartItem.delete({
-      where: { id: itemId },
-    });
+  async removeItem(cartId: string, itemId: string, isGuest: boolean = false) {
+    return this.updateItemQuantity(cartId, itemId, 0, isGuest);
   },
 
   /**
-   * Merges a guest cart (sessionId) into a registered user cart (customerId).
+   * Merges a guest cart (Redis) into a registered user cart (DB).
    */
   async mergeCarts(sessionId: string, customerId: string) {
-    const guestCart = await prisma.cart.findFirst({
-      where: { sessionId, status: 'ACTIVE' },
-      include: { items: true },
-    });
-
-    if (!guestCart || guestCart.items.length === 0) {
+    const redisKey = `cart:${sessionId}`;
+    const guestCartStr = await redisClient.get(redisKey);
+    
+    if (!guestCartStr) {
       return this.getOrCreateCart(undefined, customerId);
     }
 
+    const guestCart = JSON.parse(guestCartStr);
     const userCart = await this.getOrCreateCart(undefined, customerId);
 
     // Merge items
     for (const item of guestCart.items) {
-      await this.addItem(userCart.id, item.variantId, item.quantity);
+      await this.addItem(userCart.id, item.variantId, item.quantity, false);
     }
 
-    // Mark guest cart as converted
-    await prisma.cart.update({
-      where: { id: guestCart.id },
-      data: { status: 'CONVERTED' },
-    });
+    // Delete guest cart from Redis
+    await redisClient.del(redisKey);
 
     return this.getOrCreateCart(undefined, customerId);
   },
