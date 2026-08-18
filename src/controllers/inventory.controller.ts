@@ -17,9 +17,10 @@ export const getInventory = async (req: Request, res: Response) => {
   try {
     const search = req.query.search as string | undefined;
     const branchId = req.query.branchId as string | undefined;
+    const status = req.query.status as string | undefined;
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
-    const result = await inventoryService.getInventory(search, branchId, page, limit);
+    const result = await inventoryService.getInventory(search, branchId, status, page, limit);
     res.json(result);
   } catch (e: any) {
     res.status(500).json({ error: e.message });

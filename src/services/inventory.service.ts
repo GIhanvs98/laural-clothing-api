@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import prisma from '../config/prisma';
 import { signImageUrl } from './product.service';
 
@@ -15,7 +16,7 @@ export const inventoryService = {
   },
 
   // ─── Stock Levels ────────────────────────────────────────────────────────────
-  async getInventory(search?: string, branchId?: string, page = 1, limit = 20) {
+  async getInventory(search?: string, branchId?: string, status?: string, page = 1, limit = 20) {
     const skip = (page - 1) * limit;
 
     const where: any = {};
@@ -28,6 +29,14 @@ export const inventoryService = {
           { product: { name: { contains: search, mode: 'insensitive' } } },
         ]
       };
+    }
+    
+    if (status === 'outofstock') {
+      where.quantity = 0;
+    } else if (status === 'lowstock') {
+      where.quantity = { gt: 0, lte: 10 }; // Using default threshold 10
+    } else if (status === 'instock') {
+      where.quantity = { gt: 10 };
     }
 
     const items = await prisma.inventoryItem.findMany({
@@ -83,27 +92,36 @@ export const inventoryService = {
 
   // ─── KPI Stats ───────────────────────────────────────────────────────────────
   async getStats(branchId?: string) {
-    const where: any = {};
-    if (branchId) where.branchId = branchId;
+    const baseQuery = `
+      SELECT 
+        CAST(COALESCE(SUM(ii."quantity"), 0) AS INTEGER) as "totalQty",
+        CAST(COALESCE(SUM(CASE WHEN ii."quantity" = 0 THEN 1 ELSE 0 END), 0) AS INTEGER) as "outOfStockCount",
+        CAST(COALESCE(SUM(CASE WHEN ii."quantity" > 0 AND ii."quantity" <= ii."lowStockThreshold" THEN 1 ELSE 0 END), 0) AS INTEGER) as "lowStockCount",
+        CAST(COALESCE(SUM(ii."quantity" * pv."price"), 0) AS FLOAT) as "estimatedValue"
+      FROM "InventoryItem" ii
+      JOIN "ProductVariant" pv ON ii."variantId" = pv."id"
+    `;
 
-    const [inventoryItems, totalVariants] = await Promise.all([
-      prisma.inventoryItem.findMany({
-        where,
-        select: { quantity: true, reservedQty: true, lowStockThreshold: true, variant: { select: { price: true } } },
-      }),
+    const query = branchId ? `${baseQuery} WHERE ii."branchId" = $1` : baseQuery;
+    const args = branchId ? [branchId] : [];
+
+    const [statsResult, totalVariants] = await Promise.all([
+      prisma.$queryRawUnsafe(query, ...args) as Promise<any[]>,
       prisma.productVariant.count(),
     ]);
 
-    const lowStockCount = inventoryItems.filter((i: any) => i.quantity > 0 && i.quantity <= i.lowStockThreshold).length;
-    const outOfStockCount = inventoryItems.filter((i: any) => i.quantity === 0).length;
-    const totalQty = inventoryItems.reduce((s: any, i: any) => s + i.quantity, 0);
-    const estimatedValue = inventoryItems.reduce((s: any, i: any) => s + (i.quantity * i.variant.price), 0);
+    const stats = Array.isArray(statsResult) && statsResult.length > 0 ? statsResult[0] : {
+      totalQty: 0,
+      outOfStockCount: 0,
+      lowStockCount: 0,
+      estimatedValue: 0
+    };
 
     return {
-      totalItems: totalQty,
-      lowStockCount,
-      outOfStockCount,
-      estimatedValue,
+      totalItems: stats.totalQty,
+      lowStockCount: stats.lowStockCount,
+      outOfStockCount: stats.outOfStockCount,
+      estimatedValue: stats.estimatedValue,
       totalSKUs: totalVariants, // Total catalog SKUs, regardless of stock
     };
   },
