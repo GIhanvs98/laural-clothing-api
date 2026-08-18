@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import {
   getBranches,
+  createBranch,
+  updateBranch,
+  deleteBranch,
   getInventory,
   getStats,
   getTransactions,
@@ -18,6 +21,9 @@ import {
 const router = Router();
 
 router.get('/branches', getBranches);
+router.post('/branches', createBranch);
+router.put('/branches/:id', updateBranch);
+router.delete('/branches/:id', deleteBranch);
 router.get('/', getInventory);
 router.get('/stats', getStats);
 router.get('/transactions', getTransactions);

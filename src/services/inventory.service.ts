@@ -6,13 +6,50 @@ export const inventoryService = {
 
   // ─── Branches ────────────────────────────────────────────────────────────────
   async getBranches() {
-    return prisma.branch.findMany({
-      orderBy: { name: 'asc' }
+    const branches = await prisma.branch.findMany({
+      orderBy: { name: 'asc' },
+      include: {
+        manager: {
+          select: { name: true }
+        },
+        _count: {
+          select: { staff: true, posTerminals: true }
+        },
+        orders: {
+          select: { total: true }
+        }
+      }
+    });
+
+    return branches.map(branch => {
+      const revenue = branch.orders.reduce((sum, order) => sum + order.total, 0);
+      return {
+        id: branch.id,
+        name: branch.name,
+        code: branch.code,
+        address: branch.address,
+        phone: branch.phone,
+        type: branch.type,
+        isActive: branch.isActive,
+        managerName: branch.manager?.name || 'N/A',
+        staffCount: branch._count.staff,
+        posCount: branch._count.posTerminals,
+        revenue,
+      };
     });
   },
 
-  async createBranch(data: { name: string, code: string, address?: string, phone?: string, type?: string }) {
+  async createBranch(data: { name: string, code: string, address?: string, phone?: string, type?: string, isActive?: boolean }) {
     return prisma.branch.create({ data });
+  },
+
+  async updateBranch(id: string, data: Partial<{ name: string, code: string, address: string, phone: string, type: string, isActive: boolean }>) {
+    return prisma.branch.update({ where: { id }, data });
+  },
+
+  async deleteBranch(id: string) {
+    // Soft delete by setting isActive to false
+    return prisma.branch.update({ where: { id }, data: { isActive: false } });
   },
 
   // ─── Stock Levels ────────────────────────────────────────────────────────────
