@@ -98,6 +98,7 @@ model Collection {
   title       String
   slug        String   @unique
   description String?
+  imageUrl    String?
   type        CollectionType @default(MANUAL)
   status      String   @default("Active") // Active or Draft
   
