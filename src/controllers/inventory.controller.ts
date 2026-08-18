@@ -1,13 +1,25 @@
 import { Request, Response } from 'express';
 import { inventoryService } from '../services/inventory.service';
+import { FardarService } from '../services/fardar.service';
+
+// GET /api/inventory/branches
+export const getBranches = async (req: Request, res: Response) => {
+  try {
+    const branches = await inventoryService.getBranches();
+    res.json(branches);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+};
 
 // GET /api/inventory
 export const getInventory = async (req: Request, res: Response) => {
   try {
     const search = req.query.search as string | undefined;
+    const branchId = req.query.branchId as string | undefined;
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
-    const result = await inventoryService.getInventory(search, page, limit);
+    const result = await inventoryService.getInventory(search, branchId, page, limit);
     res.json(result);
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -17,7 +29,8 @@ export const getInventory = async (req: Request, res: Response) => {
 // GET /api/inventory/stats
 export const getStats = async (req: Request, res: Response) => {
   try {
-    const stats = await inventoryService.getStats();
+    const branchId = req.query.branchId as string | undefined;
+    const stats = await inventoryService.getStats(branchId);
     res.json(stats);
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -27,9 +40,10 @@ export const getStats = async (req: Request, res: Response) => {
 // GET /api/inventory/transactions
 export const getTransactions = async (req: Request, res: Response) => {
   try {
+    const branchId = req.query.branchId as string | undefined;
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
-    const result = await inventoryService.getTransactions(page, limit);
+    const result = await inventoryService.getTransactions(branchId, page, limit);
     res.json(result);
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -39,14 +53,14 @@ export const getTransactions = async (req: Request, res: Response) => {
 // POST /api/inventory/adjust
 export const adjustStock = async (req: Request, res: Response) => {
   try {
-    const { variantId, type, quantity, reason, reference } = req.body;
-    if (!variantId || !type || !quantity) {
-      return res.status(400).json({ error: 'variantId, type and quantity are required' });
+    const { variantId, branchId, type, quantity, reason, reference } = req.body;
+    if (!variantId || !branchId || !type || !quantity) {
+      return res.status(400).json({ error: 'variantId, branchId, type and quantity are required' });
     }
     if (!['RECEIVE', 'DEDUCT'].includes(type)) {
       return res.status(400).json({ error: 'type must be RECEIVE or DEDUCT' });
     }
-    const result = await inventoryService.adjustStock({ variantId, type, quantity: Number(quantity), reason, reference });
+    const result = await inventoryService.adjustStock({ variantId, branchId, type, quantity: Number(quantity), reason, reference });
     res.json(result);
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -68,14 +82,14 @@ export const getTransfers = async (req: Request, res: Response) => {
 // POST /api/inventory/transfers
 export const createTransfer = async (req: Request, res: Response) => {
   try {
-    const { variantId, fromLocation, toLocation, quantity, requestedBy, notes } = req.body;
-    if (!variantId || !fromLocation || !toLocation || !quantity) {
-      return res.status(400).json({ error: 'variantId, fromLocation, toLocation, and quantity are required' });
+    const { variantId, fromBranchId, toBranchId, quantity, requestedBy, notes } = req.body;
+    if (!variantId || !fromBranchId || !toBranchId || !quantity) {
+      return res.status(400).json({ error: 'variantId, fromBranchId, toBranchId, and quantity are required' });
     }
-    if (fromLocation === toLocation) {
-      return res.status(400).json({ error: 'fromLocation and toLocation must be different' });
+    if (fromBranchId === toBranchId) {
+      return res.status(400).json({ error: 'fromBranchId and toBranchId must be different' });
     }
-    const transfer = await inventoryService.createTransfer({ variantId, fromLocation, toLocation, quantity: Number(quantity), requestedBy, notes });
+    const transfer = await inventoryService.createTransfer({ variantId, fromBranchId, toBranchId, quantity: Number(quantity), requestedBy, notes });
     res.status(201).json(transfer);
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -87,7 +101,7 @@ export const updateTransferStatus = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
     const { status } = req.body;
-    const validStatuses = ['Pending', 'Approved', 'Dispatched', 'Received', 'Cancelled'];
+    const validStatuses = ['PENDING', 'APPROVED', 'DISPATCHED', 'RECEIVED', 'CANCELLED'];
     if (!status || !validStatuses.includes(status as string)) {
       return res.status(400).json({ error: `status must be one of: ${validStatuses.join(', ')}` });
     }
@@ -97,3 +111,55 @@ export const updateTransferStatus = async (req: Request, res: Response) => {
     res.status(500).json({ error: e.message });
   }
 };
+
+// POST /api/inventory/shipping/create
+export const createShipment = async (req: Request, res: Response) => {
+  try {
+    const shipment = await FardarService.createShipment(req.body);
+    res.status(201).json(shipment);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+};
+
+// GET /api/inventory/shipping/:trackingNumber
+export const trackShipment = async (req: Request, res: Response) => {
+  try {
+    const status = await FardarService.trackShipment(req.params.trackingNumber as string);
+    res.json(status);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+};
+
+// POST /api/inventory/shipping/webhook
+export const fardarWebhook = async (req: Request, res: Response) => {
+  try {
+    console.log('[Webhook] Fardar event received:', req.body);
+    // In reality, verify signature, update Order status in DB, etc.
+    res.status(200).send('OK');
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+};
+
+// POST /api/inventory/reserve
+export const reserveStock = async (req: Request, res: Response) => {
+  try {
+    const result = await inventoryService.reserveStock(req.body);
+    res.json(result);
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+};
+
+// POST /api/inventory/release
+export const releaseStock = async (req: Request, res: Response) => {
+  try {
+    const result = await inventoryService.releaseStock(req.body);
+    res.json(result);
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+};
+

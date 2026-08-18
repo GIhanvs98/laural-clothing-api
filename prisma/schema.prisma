@@ -75,7 +75,7 @@ model ProductVariant {
   featuredImage String?
   gallery       String[]
 
-  inventoryItem    InventoryItem?
+  inventoryItems    InventoryItem[]
   transactions     InventoryTransaction[]
   stockTransfers   StockTransfer[]
   cartItems        CartItem[]
@@ -85,10 +85,31 @@ model ProductVariant {
   updatedAt   DateTime @updatedAt
 }
 
+model Branch {
+  id          String   @id @default(uuid())
+  name        String
+  code        String   @unique
+  address     String?
+  phone       String?
+  type        String   @default("RETAIL") // WAREHOUSE | RETAIL
+  isActive    Boolean  @default(true)
+  
+  inventory    InventoryItem[]
+  transactions InventoryTransaction[]
+  transfersOut StockTransfer[] @relation("FromBranch")
+  transfersIn  StockTransfer[] @relation("ToBranch")
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 model InventoryItem {
   id                String         @id @default(uuid())
-  variantId         String         @unique
+  variantId         String
   variant           ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  branchId          String
+  branch            Branch         @relation(fields: [branchId], references: [id], onDelete: Cascade)
 
   quantity          Int            @default(0)
   reservedQty       Int            @default(0)
@@ -96,12 +117,17 @@ model InventoryItem {
 
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
+
+  @@unique([variantId, branchId])
 }
 
 model InventoryTransaction {
   id             String         @id @default(uuid())
   variantId      String
   variant        ProductVariant @relation(fields: [variantId], references: [id])
+
+  branchId       String
+  branch         Branch         @relation(fields: [branchId], references: [id])
 
   type           String   // RECEIVE | DEDUCT | TRANSFER_OUT | TRANSFER_IN | SALE | RETURN
   quantityChange Int      // positive = add, negative = deduct
@@ -113,8 +139,10 @@ model InventoryTransaction {
 
 model StockTransfer {
   id           String         @id @default(uuid())
-  fromLocation String
-  toLocation   String
+  fromBranchId String
+  fromBranch   Branch         @relation("FromBranch", fields: [fromBranchId], references: [id])
+  toBranchId   String
+  toBranch     Branch         @relation("ToBranch", fields: [toBranchId], references: [id])
   variantId    String
   variant      ProductVariant @relation(fields: [variantId], references: [id])
 
