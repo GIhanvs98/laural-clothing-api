@@ -35,8 +35,10 @@ export const addItemToCart = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'variantId and quantity are required' });
     }
 
+    const isGuest = !customerId;
     const cart = await cartService.getOrCreateCart(sessionId, customerId);
-    await cartService.addItem(cart.id, variantId, Number(quantity));
+    
+    await cartService.addItem(cart.id, variantId, Number(quantity), isGuest);
     
     // Fetch updated cart to return full state
     const updatedCart = await cartService.getOrCreateCart(sessionId, customerId);
@@ -48,17 +50,20 @@ export const addItemToCart = async (req: Request, res: Response) => {
 
 export const updateCartItem = async (req: Request, res: Response) => {
   try {
-    const id = req.params.id as string;
+    const id = req.params.id as string; // itemId
     const { quantity } = req.body;
     
     if (quantity === undefined) {
       return res.status(400).json({ error: 'quantity is required' });
     }
 
-    await cartService.updateItemQuantity(id, Number(quantity));
+    const { sessionId, customerId } = getIdentifier(req);
+    const isGuest = !customerId;
+    const cart = await cartService.getOrCreateCart(sessionId, customerId);
+
+    await cartService.updateItemQuantity(cart.id, id, Number(quantity), isGuest);
     
     // Fetch updated cart
-    const { sessionId, customerId } = getIdentifier(req);
     const updatedCart = await cartService.getOrCreateCart(sessionId, customerId);
     res.json(updatedCart);
   } catch (error: any) {
@@ -68,11 +73,14 @@ export const updateCartItem = async (req: Request, res: Response) => {
 
 export const removeCartItem = async (req: Request, res: Response) => {
   try {
-    const id = req.params.id as string;
-    await cartService.removeItem(id);
+    const id = req.params.id as string; // itemId
+    const { sessionId, customerId } = getIdentifier(req);
+    const isGuest = !customerId;
+    const cart = await cartService.getOrCreateCart(sessionId, customerId);
+
+    await cartService.removeItem(cart.id, id, isGuest);
     
     // Fetch updated cart
-    const { sessionId, customerId } = getIdentifier(req);
     const updatedCart = await cartService.getOrCreateCart(sessionId, customerId);
     res.json(updatedCart);
   } catch (error: any) {
