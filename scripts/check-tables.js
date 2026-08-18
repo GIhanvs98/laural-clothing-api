@@ -6,10 +6,28 @@ async function main() {
     await client.connect();
     
     try {
-        const res = await client.query('SELECT description, excerpt FROM "LegacyProduct" WHERE description IS NOT NULL LIMIT 1');
-        console.log("Legacy Product:", res.rows[0]);
+        const legacyRes = await client.query(`
+            SELECT "name", "featuredImage", "gallery" 
+            FROM "LegacyProduct" 
+            WHERE "name" ILIKE '%Molly Top%'
+            LIMIT 10;
+        `);
+        console.log("Legacy Molly Top products:");
+        console.dir(legacyRes.rows, { depth: null });
+        
+        const vRes = await client.query(`
+            SELECT "name", "featuredImage", "gallery" 
+            FROM "ProductVariant" 
+            WHERE "name" ILIKE '%Molly Top%'
+            LIMIT 10;
+        `);
+        console.log("Molly Top Variants:");
+        console.dir(vRes.rows, { depth: null });
+    } catch (e) {
+        console.error(e);
     } finally {
         await client.end();
     }
 }
+
 main();
