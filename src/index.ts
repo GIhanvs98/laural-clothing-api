@@ -5,6 +5,7 @@ import * as dotenv from 'dotenv';
 import productRoutes from './routes/product.routes';
 import categoryRoutes from './routes/category.routes';
 import collectionRoutes from './routes/collection.routes';
+import inventoryRoutes from './routes/inventory.routes';
 import prisma from './config/prisma';
 
 dotenv.config();
@@ -22,6 +23,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/products', productRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/collections', collectionRoutes);
+app.use('/api/inventory', inventoryRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
