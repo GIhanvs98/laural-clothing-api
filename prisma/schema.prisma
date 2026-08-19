@@ -98,6 +98,7 @@ model Branch {
   manager     User?    @relation("BranchManager", fields: [managerId], references: [id])
   staff       User[]   @relation("BranchStaff")
   posTerminals PosTerminal[]
+  posSessions  PosSession[]
   orders      Order[]
 
   inventory    InventoryItem[]
@@ -115,9 +116,46 @@ model PosTerminal {
   status      String   @default("ACTIVE") // ACTIVE, INACTIVE, MAINTENANCE
   branchId    String
   branch      Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  sessions    PosSession[]
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model PosSession {
+  id              String   @id @default(uuid())
+  branchId        String
+  branch          Branch   @relation(fields: [branchId], references: [id])
+  terminalId      String
+  terminal        PosTerminal @relation(fields: [terminalId], references: [id])
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  
+  status          String   @default("OPEN") // OPEN, CLOSED
+  openingFloat    Float    @default(0)
+  expectedClosing Float?
+  actualClosing   Float?
+  variance        Float?
+  
+  openedAt        DateTime @default(now())
+  closedAt        DateTime?
+  orders          Order[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model ExchangeVoucher {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  value       Float
+  status      String   @default("ACTIVE") // ACTIVE, USED
+  
+  orderId     String?  // ID of the order where it was used
+  order       Order?   @relation("OrderVoucher", fields: [orderId], references: [id])
+  
+  createdAt   DateTime @default(now())
+  usedAt      DateTime?
 }
 
 model InventoryItem {
@@ -181,6 +219,7 @@ model User {
   branchId  String?
   branch    Branch?  @relation("BranchStaff", fields: [branchId], references: [id])
   managedBranch Branch? @relation("BranchManager")
+  posSessions PosSession[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -289,11 +328,15 @@ model CartItem {
 model Order {
   id              String      @id @default(uuid())
   orderNumber     String      @unique
-  customerId      String
-  customer        Customer    @relation(fields: [customerId], references: [id])
+  type            String      @default("ECOMMERCE") // ECOMMERCE, POS
+  customerId      String?
+  customer        Customer?   @relation(fields: [customerId], references: [id])
+  
+  posSessionId    String?
+  posSession      PosSession? @relation(fields: [posSessionId], references: [id])
   
   status          String      @default("PENDING") // PENDING, PAID, PROCESSING, DISPATCHED, DELIVERED, CANCELLED
-  paymentMethod   String?     // KOKO, MINTPAY, ONEPAY, PAYZY, COD
+  paymentMethod   String?     // KOKO, MINTPAY, ONEPAY, PAYZY, COD, CASH, CARD
   paymentStatus   String      @default("UNPAID") // UNPAID, PAID, FAILED, REFUNDED
   
   subtotal        Float
@@ -301,8 +344,10 @@ model Order {
   tax             Float       @default(0)
   total           Float
   
-  shippingAddress Json        // Snapshot of address at time of order
+  shippingAddress Json?       // Optional for POS orders
   billingAddress  Json?
+  
+  appliedVouchers ExchangeVoucher[] @relation("OrderVoucher")
   
   branchId        String?
   branch          Branch?     @relation(fields: [branchId], references: [id])

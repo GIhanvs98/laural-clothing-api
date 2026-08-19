@@ -8,6 +8,7 @@ import collectionRoutes from './routes/collection.routes';
 import inventoryRoutes from './routes/inventory.routes';
 import cartRoutes from './routes/cart.routes';
 import checkoutRoutes from './routes/checkout.routes';
+import posRoutes from './routes/pos.routes';
 import prisma from './config/prisma';
 
 dotenv.config();
@@ -28,6 +29,7 @@ app.use('/api/collections', collectionRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/checkout', checkoutRoutes);
+app.use('/api/pos', posRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
