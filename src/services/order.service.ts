@@ -171,5 +171,87 @@ export const orderService = {
 
       return order;
     });
+  },
+
+  async getOrders(filters: any = {}, pagination: { skip?: number; take?: number } = {}) {
+    const { status, paymentGateway, branchId } = filters;
+    const { skip = 0, take = 20 } = pagination;
+
+    const where: any = {};
+    if (status) where.status = status;
+    if (branchId) where.branchId = branchId;
+    
+    // Gateway filtering: COD, BANK_TRANSFER, CARD_MANUAL for manual methods
+    // Online methods: Koko, Mintpay, etc.
+    // If gateway matches paymentMethod, we can filter by that.
+    if (paymentGateway) {
+      if (['Koko', 'Mintpay', 'OnePay', 'Payzy'].includes(paymentGateway)) {
+        where.paymentMethod = paymentGateway; // Adjust if payment gateway is stored differently
+      } else if (paymentGateway === 'COD') {
+        where.paymentMethod = 'COD';
+      }
+    }
+
+    const [orders, total] = await Promise.all([
+      prisma.order.findMany({
+        where,
+        skip,
+        take,
+        include: {
+          customer: true,
+          branch: true
+        },
+        orderBy: {
+          createdAt: 'desc'
+        }
+      }),
+      prisma.order.count({ where })
+    ]);
+
+    return { orders, total };
+  },
+
+  async getOrderById(id: string) {
+    const order = await prisma.order.findUnique({
+      where: { id },
+      include: {
+        customer: true,
+        branch: true,
+        items: {
+          include: {
+            variant: {
+              include: {
+                product: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!order) {
+      throw new Error("Order not found");
+    }
+
+    return order;
+  },
+
+  async updateOrderStatus(id: string, status: string) {
+    // Validate valid status progression or general status updates
+    const validStatuses = ['PENDING', 'PROCESSING', 'DISPATCHED', 'DELIVERED', 'CANCELLED'];
+    if (!validStatuses.includes(status)) {
+      throw new Error(`Invalid status: ${status}`);
+    }
+
+    const order = await prisma.order.update({
+      where: { id },
+      data: { status },
+      include: {
+        customer: true,
+        items: true
+      }
+    });
+
+    return order;
   }
 };

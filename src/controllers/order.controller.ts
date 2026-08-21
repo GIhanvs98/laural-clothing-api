@@ -48,3 +48,65 @@ export const createQuickDispatch = async (req: Request, res: Response) => {
     res.status(400).json({ error: error.message || 'Failed to create order' });
   }
 };
+
+export const getOrders = async (req: Request, res: Response) => {
+  try {
+    const { status, paymentGateway, branchId, page, limit } = req.query;
+    
+    const skip = page ? (parseInt(page as string) - 1) * parseInt(limit as string || '20') : 0;
+    const take = limit ? parseInt(limit as string) : 20;
+
+    const result = await orderService.getOrders({
+      status,
+      paymentGateway,
+      branchId
+    }, { skip, take });
+
+    res.json({
+      data: result.orders,
+      meta: {
+        total: result.total,
+        page: page ? parseInt(page as string) : 1,
+        limit: take,
+        totalPages: Math.ceil(result.total / take)
+      }
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const getOrderById = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    if (!id) return res.status(400).json({ error: 'Order ID is required' });
+    const order = await orderService.getOrderById(id as string);
+    res.json(order);
+  } catch (error: any) {
+    console.error(error);
+    if (error.message === "Order not found") {
+      res.status(404).json({ error: error.message });
+    } else {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+};
+
+export const updateOrderStatus = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    
+    if (!id) return res.status(400).json({ error: 'Order ID is required' });
+    if (!status) {
+      return res.status(400).json({ error: 'Status is required' });
+    }
+
+    const order = await orderService.updateOrderStatus(id as string, status as string);
+    res.json(order);
+  } catch (error: any) {
+    console.error(error);
+    res.status(400).json({ error: error.message || 'Failed to update order status' });
+  }
+};
