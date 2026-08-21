@@ -6,7 +6,9 @@ const router = Router();
 router.get('/customers/search', orderController.searchCustomer);
 router.post('/quick-dispatch', orderController.createQuickDispatch);
 router.get('/', orderController.getOrders);
+router.get('/track', orderController.trackOrder);
 router.get('/:id', orderController.getOrderById);
 router.patch('/:id/status', orderController.updateOrderStatus);
+router.post('/:id/refund', orderController.refundOrder);
 
 export default router;
