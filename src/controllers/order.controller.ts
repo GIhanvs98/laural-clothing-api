@@ -110,3 +110,31 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
     res.status(400).json({ error: error.message || 'Failed to update order status' });
   }
 };
+
+export const refundOrder = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    if (!id) return res.status(400).json({ error: 'Order ID is required' });
+
+    const order = await orderService.refundOrder(id as string);
+    res.json(order);
+  } catch (error: any) {
+    console.error(error);
+    res.status(400).json({ error: error.message || 'Failed to refund order' });
+  }
+};
+
+export const trackOrder = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber, phone } = req.query;
+    if (!orderNumber || !phone) {
+      return res.status(400).json({ error: 'orderNumber and phone are required' });
+    }
+
+    const order = await orderService.trackOrder(orderNumber as string, phone as string);
+    res.json(order);
+  } catch (error: any) {
+    console.error(error);
+    res.status(404).json({ error: error.message || 'Order not found' });
+  }
+};

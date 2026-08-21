@@ -1,5 +1,7 @@
 import prisma from '../config/prisma';
 import { redisClient } from '../config/redis';
+import { inventoryService } from './inventory.service';
+import { paymentService } from './payment.service';
 
 export const checkoutService = {
   /**
@@ -127,6 +129,29 @@ export const checkoutService = {
       },
     });
 
+    // 3.5 Deduct Inventory
+    let onlineBranch = await prisma.branch.findFirst({
+      where: { OR: [{ name: 'Online' }, { code: 'ONLINE' }] }
+    });
+    
+    // Fallback if no online branch exists
+    if (!onlineBranch) {
+      onlineBranch = await prisma.branch.findFirst({ where: { isActive: true } });
+    }
+
+    if (onlineBranch) {
+      for (const item of cart.items) {
+        await inventoryService.adjustStock({
+          variantId: item.variantId,
+          branchId: onlineBranch.id,
+          type: 'DEDUCT',
+          quantity: item.quantity,
+          reason: 'Online Order Checkout',
+          reference: order.id
+        });
+      }
+    }
+
     // 4. Clean up Cart
     if (isGuest) {
       await redisClient.del(`cart:${cartId}`);
@@ -137,6 +162,9 @@ export const checkoutService = {
       });
     }
 
-    return order;
+    // 5. Initiate Payment
+    const paymentInfo = await paymentService.initiatePayment(order.id, paymentMethod || 'COD');
+
+    return { order, payment: paymentInfo };
   },
 };

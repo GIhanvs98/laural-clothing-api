@@ -1,4 +1,6 @@
 import prisma from '../config/prisma';
+import { FardarService } from './fardar.service';
+import { inventoryService } from './inventory.service';
 
 export interface QuickDispatchPayload {
   customer: {
@@ -243,14 +245,114 @@ export const orderService = {
       throw new Error(`Invalid status: ${status}`);
     }
 
-    const order = await prisma.order.update({
+    let order = await prisma.order.findUnique({
       where: { id },
-      data: { status },
+      include: { customer: true }
+    });
+
+    if (!order) {
+      throw new Error("Order not found");
+    }
+
+    const dataToUpdate: any = { status };
+
+    if (status === 'DISPATCHED' && order.status !== 'DISPATCHED') {
+      const shippingAddress = order.shippingAddress as any;
+      const details = {
+        orderId: order.orderNumber,
+        customerName: order.customer?.firstName ? `${order.customer.firstName} ${order.customer.lastName || ''}` : shippingAddress?.firstName + ' ' + (shippingAddress?.lastName || ''),
+        customerPhone: order.customer?.phone || shippingAddress?.phone || 'Unknown',
+        customerAddress: shippingAddress ? `${shippingAddress.addressLine1} ${shippingAddress.addressLine2 || ''}` : 'Unknown',
+        city: shippingAddress?.city || 'Unknown',
+        codAmount: order.paymentMethod === 'COD' ? order.total : 0
+      };
+
+      try {
+        const shipment = await FardarService.createShipment(details);
+        if (shipment.success) {
+          dataToUpdate.trackingNumber = shipment.trackingNumber;
+          dataToUpdate.labelUrl = shipment.labelUrl;
+        }
+      } catch (err) {
+        console.error("Failed to create Fardar shipment:", err);
+        // Continue updating status even if shipment creation fails or could throw depending on requirement
+      }
+    }
+
+    order = await prisma.order.update({
+      where: { id },
+      data: dataToUpdate,
       include: {
         customer: true,
         items: true
       }
     });
+
+    return order;
+  },
+
+  async refundOrder(id: string) {
+    let order = await prisma.order.findUnique({
+      where: { id },
+      include: { items: true }
+    });
+
+    if (!order) throw new Error("Order not found");
+    if (order.status === 'CANCELLED') throw new Error("Order already cancelled");
+
+    // Revert status and payment
+    order = await prisma.order.update({
+      where: { id },
+      data: {
+        status: 'CANCELLED',
+        paymentStatus: 'REFUNDED'
+      },
+      include: { items: true }
+    });
+
+    // Restore stock
+    const branchId = order.branchId || (await prisma.branch.findFirst({ where: { OR: [{ name: 'Online' }, { code: 'ONLINE' }] } }))?.id;
+    if (branchId) {
+      for (const item of order.items) {
+        await inventoryService.adjustStock({
+          variantId: item.variantId,
+          branchId,
+          type: 'RECEIVE',
+          quantity: item.quantity,
+          reason: 'Order Refund Restock',
+          reference: order.id
+        });
+      }
+    }
+
+    return order;
+  },
+
+  async trackOrder(orderNumber: string, phone: string) {
+    const order = await prisma.order.findUnique({
+      where: { orderNumber },
+      include: { customer: true, items: { include: { variant: { include: { product: true } } } } }
+    });
+
+    if (!order) throw new Error("Order not found");
+    
+    const shippingAddress = order.shippingAddress as any;
+    const orderPhone = order.customer?.phone || shippingAddress?.phone;
+
+    if (orderPhone !== phone) {
+      throw new Error("Phone number does not match order");
+    }
+
+    // Optionally update real-time status from Fardar here if it has a tracking number
+    if (order.trackingNumber && order.status === 'DISPATCHED') {
+      try {
+        const trackingDetails = await FardarService.trackShipment(order.trackingNumber);
+        // Map Fardar status back to our system if needed, or just return it as extra info
+        return { ...order, courierStatus: trackingDetails.status, location: trackingDetails.location };
+      } catch (err) {
+        // Ignore fardar errors
+      }
+    }
 
     return order;
   }
