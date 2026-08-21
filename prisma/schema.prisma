@@ -53,6 +53,7 @@ model Product {
   
   variants    ProductVariant[]
   collections CollectionProduct[]
+  reviews     Review[]
   
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -273,6 +274,7 @@ model Customer {
   addresses Address[]
   carts     Cart[]
   orders    Order[]
+  reviews   Review[]
   
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -426,4 +428,29 @@ model MediaFile {
   key         String   @unique
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Review {
+  id                 String       @id @default(uuid())
+  productId          String
+  product            Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  customerId         String
+  customer           Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  
+  rating             Int          
+  title              String?
+  comment            String?      @db.Text
+  images             String[]     
+  status             ReviewStatus @default(PENDING)
+  
+  isVerifiedPurchase Boolean      @default(false)
+  
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
 }

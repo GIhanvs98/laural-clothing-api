@@ -11,6 +11,7 @@ import checkoutRoutes from './routes/checkout.routes';
 import posRoutes from './routes/pos.routes';
 import cmsRoutes from './routes/cms.routes';
 import mediaRoutes from './routes/media.routes';
+import reviewRoutes from './routes/review.routes';
 import prisma from './config/prisma';
 
 dotenv.config();
@@ -34,6 +35,7 @@ app.use('/api/checkout', checkoutRoutes);
 app.use('/api/pos', posRoutes);
 app.use('/api/cms', cmsRoutes);
 app.use('/api/media', mediaRoutes);
+app.use('/api/reviews', reviewRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
