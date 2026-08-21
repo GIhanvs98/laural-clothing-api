@@ -80,6 +80,7 @@ model ProductVariant {
   stockTransfers   StockTransfer[]
   cartItems        CartItem[]
   orderItems       OrderItem[]
+  flashSaleItems   FlashSaleItem[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -416,4 +417,45 @@ model StaticPage {
   lastEdited DateTime @default(now())
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+}
+
+model Coupon {
+  id          String   @id @default(uuid())
+  name        String
+  code        String   @unique
+  type        String   @default("PERCENTAGE") // PERCENTAGE | FIXED
+  value       Float
+  usageLimit  Int?
+  usedCount   Int      @default(0)
+  expiryDate  DateTime?
+  status      String   @default("ACTIVE") // ACTIVE | SCHEDULED | EXPIRED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model FlashSale {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  discount    Float    // global percentage discount if needed, or item level
+  status      String   @default("ACTIVE") // ACTIVE | SCHEDULED | EXPIRED
+  startDate   DateTime?
+  endDate     DateTime?
+  
+  items       FlashSaleItem[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model FlashSaleItem {
+  id          String   @id @default(uuid())
+  flashSaleId String
+  flashSale   FlashSale @relation(fields: [flashSaleId], references: [id], onDelete: Cascade)
+  variantId   String
+  variant     ProductVariant @relation(fields: [variantId], references: [id])
+  salePrice   Float    // price during flash sale
+  createdAt   DateTime @default(now())
+  
+  @@unique([flashSaleId, variantId])
 }
