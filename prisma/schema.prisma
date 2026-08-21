@@ -414,3 +414,16 @@ model StaticPage {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 }
+
+model MediaFile {
+  id          String   @id @default(uuid())
+  name        String
+  type        String   
+  folder      String   @default("Uncategorized")
+  size        Int      
+  dimensions  String?  
+  url         String
+  key         String   @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
