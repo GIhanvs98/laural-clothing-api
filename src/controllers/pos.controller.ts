@@ -139,7 +139,7 @@ export const validateVoucher = async (req: Request, res: Response) => {
     const { code } = req.params;
     
     const voucher = await prisma.exchangeVoucher.findUnique({
-      where: { code }
+      where: { code: code as string }
     });
     
     if (!voucher) {
