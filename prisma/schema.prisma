@@ -275,6 +275,7 @@ model Customer {
   carts     Cart[]
   orders    Order[]
   reviews   Review[]
+  returnRequests ReturnRequest[]
   
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -358,6 +359,7 @@ model Order {
   branch          Branch?     @relation(fields: [branchId], references: [id])
 
   items           OrderItem[]
+  returnRequests  ReturnRequest[]
   
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
@@ -373,7 +375,43 @@ model OrderItem {
   quantity        Int
   priceAtPurchase Float    // To lock in the price at checkout
   
+  returnItems     ReturnItem[]
+  
   createdAt       DateTime @default(now())
+}
+
+model ReturnRequest {
+  id              String       @id @default(uuid())
+  rmaId           String       @unique // e.g., RMA-00124
+  orderId         String
+  order           Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  customerId      String?
+  customer        Customer?    @relation(fields: [customerId], references: [id])
+  
+  status          String       @default("REQUESTED") // REQUESTED, APPROVED, IN_TRANSIT, RECEIVED, REFUNDED, REJECTED
+  reason          String?
+  customerNote    String?
+  adminNote       String?
+  refundAmount    Float        @default(0)
+  
+  items           ReturnItem[]
+  
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+}
+
+model ReturnItem {
+  id                String         @id @default(uuid())
+  returnRequestId   String
+  returnRequest     ReturnRequest  @relation(fields: [returnRequestId], references: [id], onDelete: Cascade)
+  orderItemId       String
+  orderItem         OrderItem      @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  
+  quantity          Int
+  condition         String?
+  inspectionStatus  String         @default("PENDING") // PENDING, RESTOCKABLE, DAMAGED
+  
+  createdAt         DateTime       @default(now())
 }
 
 model HeroSlide {

@@ -14,6 +14,7 @@ import mediaRoutes from './routes/media.routes';
 import reviewRoutes from './routes/review.routes';
 import orderRoutes from './routes/order.routes';
 import analyticsRoutes from './routes/analytics.routes';
+import returnRoutes from './routes/return.routes';
 import prisma from './config/prisma';
 
 dotenv.config();
@@ -40,6 +41,7 @@ app.use('/api/media', mediaRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/returns', returnRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
