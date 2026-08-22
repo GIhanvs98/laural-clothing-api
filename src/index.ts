@@ -8,6 +8,7 @@ import collectionRoutes from './routes/collection.routes';
 import inventoryRoutes from './routes/inventory.routes';
 import cartRoutes from './routes/cart.routes';
 import checkoutRoutes from './routes/checkout.routes';
+import wishlistRoutes from './routes/wishlist.routes';
 import posRoutes from './routes/pos.routes';
 import cmsRoutes from './routes/cms.routes';
 import orderRoutes from './routes/order.routes';
@@ -36,6 +37,7 @@ app.use('/api/pos', posRoutes);
 app.use('/api/cms', cmsRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/wishlist', wishlistRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

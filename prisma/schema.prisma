@@ -53,6 +53,7 @@ model Product {
   
   variants    ProductVariant[]
   collections CollectionProduct[]
+  wishlistItems WishlistItem[]
   
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -273,6 +274,7 @@ model Customer {
   addresses Address[]
   carts     Cart[]
   orders    Order[]
+  wishlist  Wishlist?
   
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -416,4 +418,27 @@ model StaticPage {
   lastEdited DateTime @default(now())
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+}
+
+model Wishlist {
+  id          String         @id @default(uuid())
+  sessionId   String?        @unique
+  customerId  String?        @unique
+  customer    Customer?      @relation(fields: [customerId], references: [id])
+  items       WishlistItem[]
+  
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model WishlistItem {
+  id         String   @id @default(uuid())
+  wishlistId String
+  wishlist   Wishlist @relation(fields: [wishlistId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  createdAt  DateTime @default(now())
+
+  @@unique([wishlistId, productId])
 }
