@@ -54,6 +54,7 @@ model Product {
   variants    ProductVariant[]
   collections CollectionProduct[]
   reviews     Review[]
+  wishlistItems WishlistItem[]
   
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -277,6 +278,7 @@ model Customer {
   orders    Order[]
   reviews   Review[]
   returnRequests ReturnRequest[]
+  wishlist  Wishlist?
   
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -537,4 +539,27 @@ model Review {
   
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
+}
+
+model Wishlist {
+  id          String         @id @default(uuid())
+  sessionId   String?        @unique
+  customerId  String?        @unique
+  customer    Customer?      @relation(fields: [customerId], references: [id])
+  items       WishlistItem[]
+  
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model WishlistItem {
+  id         String   @id @default(uuid())
+  wishlistId String
+  wishlist   Wishlist @relation(fields: [wishlistId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  createdAt  DateTime @default(now())
+
+  @@unique([wishlistId, productId])
 }

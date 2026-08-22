@@ -176,12 +176,13 @@ export const orderService = {
   },
 
   async getOrders(filters: any = {}, pagination: { skip?: number; take?: number } = {}) {
-    const { status, paymentGateway, branchId } = filters;
+    const { status, paymentGateway, branchId, customerId } = filters;
     const { skip = 0, take = 20 } = pagination;
 
     const where: any = {};
     if (status) where.status = status;
     if (branchId) where.branchId = branchId;
+    if (customerId) where.customerId = customerId;
     
     // Gateway filtering: COD, BANK_TRANSFER, CARD_MANUAL for manual methods
     // Online methods: Koko, Mintpay, etc.
