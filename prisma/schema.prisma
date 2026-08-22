@@ -75,8 +75,54 @@ model ProductVariant {
   featuredImage String?
   gallery       String[]
 
+  inventoryItem    InventoryItem?
+  transactions     InventoryTransaction[]
+  stockTransfers   StockTransfer[]
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model InventoryItem {
+  id                String         @id @default(uuid())
+  variantId         String         @unique
+  variant           ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  quantity          Int            @default(0)
+  reservedQty       Int            @default(0)
+  lowStockThreshold Int            @default(5)
+
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+}
+
+model InventoryTransaction {
+  id             String         @id @default(uuid())
+  variantId      String
+  variant        ProductVariant @relation(fields: [variantId], references: [id])
+
+  type           String   // RECEIVE | DEDUCT | TRANSFER_OUT | TRANSFER_IN | SALE | RETURN
+  quantityChange Int      // positive = add, negative = deduct
+  reason         String?
+  reference      String?  // PO number, Transfer ID, Order ID
+
+  createdAt      DateTime @default(now())
+}
+
+model StockTransfer {
+  id           String         @id @default(uuid())
+  fromLocation String
+  toLocation   String
+  variantId    String
+  variant      ProductVariant @relation(fields: [variantId], references: [id])
+
+  quantity     Int
+  status       String   @default("Pending") // Pending | Approved | Dispatched | Received | Cancelled
+  requestedBy  String?
+  notes        String?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model User {
