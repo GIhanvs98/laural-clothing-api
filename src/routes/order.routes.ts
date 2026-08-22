@@ -1,16 +1,14 @@
-import { Router } from "express";
-import {
-  getOrders,
-  getOrderById,
-  createOrder,
-  updateOrderStatus
-} from "../controllers/order.controller";
+import { Router } from 'express';
+import * as orderController from '../controllers/order.controller';
 
 const router = Router();
 
-router.get("/", getOrders);
-router.get("/:id", getOrderById);
-router.post("/", createOrder);
-router.patch("/:id/status", updateOrderStatus);
+router.get('/customers/search', orderController.searchCustomer);
+router.post('/quick-dispatch', orderController.createQuickDispatch);
+router.get('/', orderController.getOrders);
+router.get('/track', orderController.trackOrder);
+router.get('/:id', orderController.getOrderById);
+router.patch('/:id/status', orderController.updateOrderStatus);
+router.post('/:id/refund', orderController.refundOrder);
 
 export default router;

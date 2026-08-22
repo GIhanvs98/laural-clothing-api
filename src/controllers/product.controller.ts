@@ -48,6 +48,22 @@ export class ProductController {
     }
   }
 
+  async getProductBySku(req: Request, res: Response) {
+    try {
+      const { sku } = req.params;
+      const product = await productService.getProductBySku(sku as string);
+      
+      if (!product) {
+        res.status(404).json({ error: 'Product not found' });
+        return;
+      }
+      
+      res.status(200).json(product);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Internal Server Error' });
+    }
+  }
+
   async createProduct(req: Request, res: Response) {
     try {
       const product = await productService.createProduct(req.body);
