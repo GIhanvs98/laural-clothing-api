@@ -1,12 +1,16 @@
 import prisma from '../config/prisma';
 
 export const returnService = {
-  getReturns: async (page: number, limit: number, search?: string, status?: string) => {
+  getReturns: async (page: number, limit: number, search?: string, status?: string, customerId?: string) => {
     const skip = (page - 1) * limit;
 
     let whereClause: any = {};
     if (status && status !== 'ALL') {
       whereClause.status = status;
+    }
+    
+    if (customerId) {
+      whereClause.customerId = customerId;
     }
     
     if (search) {
