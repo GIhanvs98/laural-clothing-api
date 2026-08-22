@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from '../config/prisma';
 import { FardarService } from './fardar.service';
-
-const prisma = new PrismaClient();
 
 export const orderService = {
   /**
