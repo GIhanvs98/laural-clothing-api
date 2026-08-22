@@ -21,6 +21,7 @@ import promotionRoutes from "./routes/promotion.routes";
 import mediaRoutes from "./routes/media.routes";
 import reviewRoutes from "./routes/review.routes";
 import analyticsRoutes from "./routes/analytics.routes";
+import returnRoutes from "./routes/return.routes";
 
 dotenv.config();
 
@@ -56,6 +57,7 @@ app.use(`${API_PREFIX}/promotions`, promotionRoutes);
 app.use(`${API_PREFIX}/media`, mediaRoutes);
 app.use(`${API_PREFIX}/reviews`, reviewRoutes);
 app.use(`${API_PREFIX}/analytics`, analyticsRoutes);
+app.use(`${API_PREFIX}/returns`, returnRoutes);
 
 // Health Check
 app.get("/health", (req: Request, res: Response) => {
