@@ -18,6 +18,8 @@ import posRoutes from "./routes/pos.routes";
 import cmsRoutes from "./routes/cms.routes";
 import paymentRoutes from "./routes/payment.routes";
 import promotionRoutes from "./routes/promotion.routes";
+import mediaRoutes from "./routes/media.routes";
+import reviewRoutes from "./routes/review.routes";
 
 dotenv.config();
 
@@ -50,6 +52,8 @@ app.use(`${API_PREFIX}/pos`, posRoutes);
 app.use(`${API_PREFIX}/cms`, cmsRoutes);
 app.use(`${API_PREFIX}/payments`, paymentRoutes);
 app.use(`${API_PREFIX}/promotions`, promotionRoutes);
+app.use(`${API_PREFIX}/media`, mediaRoutes);
+app.use(`${API_PREFIX}/reviews`, reviewRoutes);
 
 // Health Check
 app.get("/health", (req: Request, res: Response) => {
