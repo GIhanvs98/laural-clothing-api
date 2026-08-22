@@ -24,6 +24,7 @@ import analyticsRoutes from "./routes/analytics.routes";
 import returnRoutes from "./routes/return.routes";
 import wishlistRoutes from "./routes/wishlist.routes";
 import addressRoutes from "./routes/address.routes";
+import reportRoutes from "./routes/report.routes";
 
 dotenv.config();
 
@@ -62,6 +63,7 @@ app.use(`${API_PREFIX}/analytics`, analyticsRoutes);
 app.use(`${API_PREFIX}/returns`, returnRoutes);
 app.use(`${API_PREFIX}/wishlist`, wishlistRoutes);
 app.use(`${API_PREFIX}/addresses`, addressRoutes);
+app.use(`${API_PREFIX}/reports`, reportRoutes);
 
 // Health Check
 app.get("/health", (req: Request, res: Response) => {
