@@ -23,12 +23,14 @@ export const analyticsService = {
       previousEnd.setMilliseconds(-1);
     } else if (period === 'Last 7 Days') {
       currentStart.setDate(currentStart.getDate() - 7);
+      currentStart.setHours(0, 0, 0, 0);
       previousStart = new Date(currentStart);
       previousStart.setDate(previousStart.getDate() - 7);
       previousEnd = new Date(currentStart);
       previousEnd.setMilliseconds(-1);
     } else if (period === 'Last 30 Days') {
       currentStart.setDate(currentStart.getDate() - 30);
+      currentStart.setHours(0, 0, 0, 0);
       previousStart = new Date(currentStart);
       previousStart.setDate(previousStart.getDate() - 30);
       previousEnd = new Date(currentStart);
