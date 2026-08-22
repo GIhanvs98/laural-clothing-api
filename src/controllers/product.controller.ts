@@ -7,8 +7,9 @@ export class ProductController {
       const skip = req.query.skip ? parseInt(req.query.skip as string, 10) : undefined;
       const take = req.query.take ? parseInt(req.query.take as string, 10) : undefined;
       const search = req.query.search as string | undefined;
+      const category = req.query.category as string | undefined;
 
-      const result = await productService.getAllProducts({ skip, take, search });
+      const result = await productService.getAllProducts({ skip, take, search, category });
       res.status(200).json(result);
     } catch (error: any) {
       res.status(500).json({ error: error.message || 'Internal Server Error' });

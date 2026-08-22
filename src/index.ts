@@ -10,6 +10,7 @@ import productRoutes from "./routes/product.routes";
 import orderRoutes from "./routes/order.routes";
 import categoryRoutes from "./routes/category.routes";
 import customerRoutes from "./routes/customer.routes";
+import collectionRoutes from "./routes/collection.routes";
 
 dotenv.config();
 
@@ -34,6 +35,7 @@ app.use(`${API_PREFIX}/products`, productRoutes);
 app.use(`${API_PREFIX}/orders`, orderRoutes);
 app.use(`${API_PREFIX}/categories`, categoryRoutes);
 app.use(`${API_PREFIX}/customers`, customerRoutes);
+app.use(`${API_PREFIX}/collections`, collectionRoutes);
 
 // Health Check
 app.get("/health", (req: Request, res: Response) => {
