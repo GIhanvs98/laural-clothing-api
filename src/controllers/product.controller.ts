@@ -1,71 +1,80 @@
-import { Request, Response, NextFunction } from "express";
-import { AppError } from "../middlewares/errorHandler";
-import { logger } from "../utils/logger";
+import { Request, Response } from 'express';
+import { productService } from '../services/product.service';
 
-export const getProducts = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    // TODO: Fetch products from Prisma
-    res.status(200).json({
-      success: true,
-      data: [],
-      message: "Products fetched successfully (Mock)"
-    });
-  } catch (error) {
-    next(error);
-  }
-};
+export class ProductController {
+  async getAllProducts(req: Request, res: Response) {
+    try {
+      const skip = req.query.skip ? parseInt(req.query.skip as string, 10) : undefined;
+      const take = req.query.take ? parseInt(req.query.take as string, 10) : undefined;
+      const search = req.query.search as string | undefined;
 
-export const getProductById = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { id } = req.params;
-    // TODO: Fetch single product from Prisma
-    res.status(200).json({
-      success: true,
-      data: { id },
-      message: "Product fetched successfully (Mock)"
-    });
-  } catch (error) {
-    next(error);
+      const result = await productService.getAllProducts({ skip, take, search });
+      res.status(200).json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Internal Server Error' });
+    }
   }
-};
 
-export const createProduct = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    // TODO: Validate req.body and create product via Prisma
-    res.status(201).json({
-      success: true,
-      data: req.body,
-      message: "Product created successfully (Mock)"
-    });
-  } catch (error) {
-    next(error);
+  async getProductById(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const product = await productService.getProductById(id as string);
+      
+      if (!product) {
+        res.status(404).json({ error: 'Product not found' });
+        return;
+      }
+      
+      res.status(200).json(product);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Internal Server Error' });
+    }
   }
-};
 
-export const updateProduct = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { id } = req.params;
-    // TODO: Update product via Prisma
-    res.status(200).json({
-      success: true,
-      data: { id, ...req.body },
-      message: "Product updated successfully (Mock)"
-    });
-  } catch (error) {
-    next(error);
+  async getProductBySlug(req: Request, res: Response) {
+    try {
+      const { slug } = req.params;
+      const product = await productService.getProductBySlug(slug as string);
+      
+      if (!product) {
+        res.status(404).json({ error: 'Product not found' });
+        return;
+      }
+      
+      res.status(200).json(product);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Internal Server Error' });
+    }
   }
-};
 
-export const deleteProduct = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { id } = req.params;
-    // TODO: Delete product via Prisma
-    res.status(200).json({
-      success: true,
-      data: { id },
-      message: "Product deleted successfully (Mock)"
-    });
-  } catch (error) {
-    next(error);
+  async createProduct(req: Request, res: Response) {
+    try {
+      const product = await productService.createProduct(req.body);
+      res.status(201).json(product);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || 'Bad Request' });
+    }
   }
-};
+
+  async updateProduct(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const product = await productService.updateProduct(id as string, req.body);
+      res.status(200).json(product);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || 'Bad Request' });
+    }
+  }
+
+  async deleteProduct(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      await productService.deleteProduct(id as string);
+      res.status(204).send();
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || 'Bad Request' });
+    }
+  }
+}
+
+export const productController = new ProductController();
