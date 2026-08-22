@@ -177,6 +177,17 @@ export const analyticsService = {
     const customersTrend = this.calculateTrend(currentNewCustomers, previousNewCustomers);
     const aovTrend = this.calculateTrend(currentAvgOrderValue, previousAvgOrderValue);
 
+    // RECENT TRANSACTIONS
+    const recentTransactions = await prisma.order.findMany({
+      where: orderBaseFilter,
+      take: 10,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        customer: true,
+        branch: true
+      }
+    });
+
     return {
       revenue: {
         value: currentRevenue,
@@ -218,7 +229,17 @@ export const analyticsService = {
         trend: "This period",
         trendType: returnsValue > 0 ? 'negative' : 'neutral'
       },
-      paymentGatewayPerformance
+      paymentGatewayPerformance,
+      recentTransactions: recentTransactions.map(t => ({
+        id: t.id,
+        customer: t.customer?.firstName ? `${t.customer.firstName} ${t.customer.lastName || ''}`.trim() : (t.customer?.isGuest ? 'Guest' : 'Unknown'),
+        branch: t.branch?.name || 'Online',
+        amount: t.total,
+        paymentMethod: t.paymentMethod || 'Unknown',
+        paymentStatus: t.paymentStatus,
+        orderStatus: t.status,
+        createdAt: t.createdAt
+      }))
     };
   }
 };
