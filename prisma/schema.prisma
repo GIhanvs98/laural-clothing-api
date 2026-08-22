@@ -349,6 +349,9 @@ model Order {
   shippingAddress Json?       // Optional for POS orders
   billingAddress  Json?
   
+  trackingNumber  String?
+  trackingUrl     String?
+  
   appliedVouchers ExchangeVoucher[] @relation("OrderVoucher")
   
   branchId        String?
