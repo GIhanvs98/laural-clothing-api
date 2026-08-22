@@ -75,18 +75,58 @@ model ProductVariant {
   featuredImage String?
   gallery       String[]
 
-  inventoryItem    InventoryItem?
+  inventoryItems    InventoryItem[]
   transactions     InventoryTransaction[]
   stockTransfers   StockTransfer[]
+  cartItems        CartItem[]
+  orderItems       OrderItem[]
 
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Branch {
+  id          String   @id @default(uuid())
+  name        String
+  code        String   @unique
+  address     String?
+  phone       String?
+  type        String   @default("RETAIL") // WAREHOUSE | RETAIL
+  isActive    Boolean  @default(true)
+  
+  managerId   String?  @unique
+  manager     User?    @relation("BranchManager", fields: [managerId], references: [id])
+  staff       User[]   @relation("BranchStaff")
+  posTerminals PosTerminal[]
+  orders      Order[]
+
+  inventory    InventoryItem[]
+  transactions InventoryTransaction[]
+  transfersOut StockTransfer[] @relation("FromBranch")
+  transfersIn  StockTransfer[] @relation("ToBranch")
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model PosTerminal {
+  id          String   @id @default(uuid())
+  name        String
+  status      String   @default("ACTIVE") // ACTIVE, INACTIVE, MAINTENANCE
+  branchId    String
+  branch      Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
 
 model InventoryItem {
   id                String         @id @default(uuid())
-  variantId         String         @unique
+  variantId         String
   variant           ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  branchId          String
+  branch            Branch         @relation(fields: [branchId], references: [id], onDelete: Cascade)
 
   quantity          Int            @default(0)
   reservedQty       Int            @default(0)
@@ -94,12 +134,17 @@ model InventoryItem {
 
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
+
+  @@unique([variantId, branchId])
 }
 
 model InventoryTransaction {
   id             String         @id @default(uuid())
   variantId      String
   variant        ProductVariant @relation(fields: [variantId], references: [id])
+
+  branchId       String
+  branch         Branch         @relation(fields: [branchId], references: [id])
 
   type           String   // RECEIVE | DEDUCT | TRANSFER_OUT | TRANSFER_IN | SALE | RETURN
   quantityChange Int      // positive = add, negative = deduct
@@ -111,8 +156,10 @@ model InventoryTransaction {
 
 model StockTransfer {
   id           String         @id @default(uuid())
-  fromLocation String
-  toLocation   String
+  fromBranchId String
+  fromBranch   Branch         @relation("FromBranch", fields: [fromBranchId], references: [id])
+  toBranchId   String
+  toBranch     Branch         @relation("ToBranch", fields: [toBranchId], references: [id])
   variantId    String
   variant      ProductVariant @relation(fields: [variantId], references: [id])
 
@@ -130,8 +177,18 @@ model User {
   email     String   @unique
   password  String
   name      String?
+  role      Role     @default(STAFF)
+  branchId  String?
+  branch    Branch?  @relation("BranchStaff", fields: [branchId], references: [id])
+  managedBranch Branch? @relation("BranchManager")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+enum Role {
+  SUPER_ADMIN
+  MANAGER
+  STAFF
 }
 
 enum CollectionType {
@@ -164,4 +221,107 @@ model CollectionProduct {
   addedAt      DateTime   @default(now())
 
   @@id([collectionId, productId])
+}
+
+model Customer {
+  id        String    @id @default(uuid())
+  phone     String    @unique
+  email     String?   @unique
+  firstName String?
+  lastName  String?
+  isGuest   Boolean   @default(true)
+  
+  addresses Address[]
+  carts     Cart[]
+  orders    Order[]
+  
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Address {
+  id          String   @id @default(uuid())
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id])
+  
+  type        String   @default("SHIPPING") // SHIPPING, BILLING
+  firstName   String
+  lastName    String
+  addressLine1 String
+  addressLine2 String?
+  city        String
+  postalCode  String?
+  phone       String
+  
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Cart {
+  id          String     @id @default(uuid())
+  sessionId   String?    @unique // For guest carts
+  customerId  String?
+  customer    Customer?  @relation(fields: [customerId], references: [id])
+  
+  status      String     @default("ACTIVE") // ACTIVE, ABANDONED, CONVERTED
+  items       CartItem[]
+  
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model CartItem {
+  id        String   @id @default(uuid())
+  cartId    String
+  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  variantId String
+  variant   ProductVariant @relation(fields: [variantId], references: [id])
+  
+  quantity  Int      @default(1)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([cartId, variantId])
+}
+
+model Order {
+  id              String      @id @default(uuid())
+  orderNumber     String      @unique
+  customerId      String
+  customer        Customer    @relation(fields: [customerId], references: [id])
+  
+  status          String      @default("PENDING") // PENDING, PAID, PROCESSING, DISPATCHED, DELIVERED, CANCELLED
+  paymentMethod   String?     // KOKO, MINTPAY, ONEPAY, PAYZY, COD
+  paymentStatus   String      @default("UNPAID") // UNPAID, PAID, FAILED, REFUNDED
+  
+  subtotal        Float
+  shippingFee     Float
+  tax             Float       @default(0)
+  total           Float
+  
+  shippingAddress Json        // Snapshot of address at time of order
+  billingAddress  Json?
+  
+  branchId        String?
+  branch          Branch?     @relation(fields: [branchId], references: [id])
+
+  items           OrderItem[]
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+model OrderItem {
+  id              String   @id @default(uuid())
+  orderId         String
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variantId       String
+  variant         ProductVariant @relation(fields: [variantId], references: [id])
+  
+  quantity        Int
+  priceAtPurchase Float    // To lock in the price at checkout
+  
+  createdAt       DateTime @default(now())
 }
