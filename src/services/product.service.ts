@@ -114,6 +114,14 @@ export class ProductService {
     return product ? processProductImageUrls(product) : null;
   }
 
+  async getProductBySku(sku: string) {
+    const variant = await prisma.productVariant.findUnique({
+      where: { sku },
+      include: { product: { include: { variants: true } } },
+    });
+    return variant && variant.product ? processProductImageUrls(variant.product) : null;
+  }
+
   async createProduct(data: Prisma.ProductCreateInput) {
     if (!data.slug) {
       data.slug = data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + Date.now();

@@ -14,6 +14,10 @@ import collectionRoutes from "./routes/collection.routes";
 import inventoryRoutes from "./routes/inventory.routes";
 import cartRoutes from "./routes/cart.routes";
 import checkoutRoutes from "./routes/checkout.routes";
+import posRoutes from "./routes/pos.routes";
+import cmsRoutes from "./routes/cms.routes";
+import paymentRoutes from "./routes/payment.routes";
+import promotionRoutes from "./routes/promotion.routes";
 
 dotenv.config();
 
@@ -42,6 +46,10 @@ app.use(`${API_PREFIX}/collections`, collectionRoutes);
 app.use(`${API_PREFIX}/inventory`, inventoryRoutes);
 app.use(`${API_PREFIX}/cart`, cartRoutes);
 app.use(`${API_PREFIX}/checkout`, checkoutRoutes);
+app.use(`${API_PREFIX}/pos`, posRoutes);
+app.use(`${API_PREFIX}/cms`, cmsRoutes);
+app.use(`${API_PREFIX}/payments`, paymentRoutes);
+app.use(`${API_PREFIX}/promotions`, promotionRoutes);
 
 // Health Check
 app.get("/health", (req: Request, res: Response) => {
