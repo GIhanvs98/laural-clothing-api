@@ -13,6 +13,7 @@ import cmsRoutes from './routes/cms.routes';
 import mediaRoutes from './routes/media.routes';
 import reviewRoutes from './routes/review.routes';
 import orderRoutes from './routes/order.routes';
+import analyticsRoutes from './routes/analytics.routes';
 import prisma from './config/prisma';
 
 dotenv.config();
@@ -38,6 +39,7 @@ app.use('/api/cms', cmsRoutes);
 app.use('/api/media', mediaRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
