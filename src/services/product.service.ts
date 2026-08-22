@@ -5,7 +5,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 const s3Client = new S3Client({
   region: process.env.AWS_S3_REGION || 'auto',
-  endpoint: process.env.AWS_S3_ENDPOINT || 'https://t3.storageapi.dev',
+  endpoint: process.env.AWS_S3_ENDPOINT,
   credentials: {
     accessKeyId: process.env.AWS_S3_ACCESS_KEY_ID || '',
     secretAccessKey: process.env.AWS_S3_SECRET_ACCESS_KEY || '',
@@ -15,7 +15,18 @@ const s3Client = new S3Client({
 
 export async function signImageUrl(url: string | null): Promise<string | null> {
   if (!url) return null;
-  if (!url.includes('t3.storageapi.dev') && !url.includes(process.env.AWS_S3_ENDPOINT || '')) return url;
+  
+  const endpointUrl = process.env.AWS_S3_ENDPOINT || '';
+  let endpointHostname = '';
+  try {
+    if (endpointUrl) {
+      endpointHostname = new URL(endpointUrl).hostname;
+    }
+  } catch (e) {
+    // Ignore invalid URL
+  }
+  
+  if (!url.includes(endpointHostname) && !url.includes(endpointUrl)) return url;
   
   try {
     const bucket = process.env.AWS_S3_BUCKET_NAME || '';
