@@ -1,6 +1,108 @@
 import prisma from '../config/prisma';
 
 export const returnService = {
+  verifyOrderForReturn: async (orderNumber: string, email: string) => {
+    const order = await prisma.order.findUnique({
+      where: { orderNumber },
+      include: {
+        customer: true,
+        items: {
+          include: {
+            variant: {
+              include: { product: true }
+            },
+            returnItems: true
+          }
+        }
+      }
+    });
+
+    if (!order) {
+      throw new Error('Order not found.');
+    }
+
+    if (order.customer?.email !== email) {
+      throw new Error('Order email does not match.');
+    }
+
+    // Filter out items that have already been fully returned
+    const returnableItems = order.items.filter(item => {
+      const alreadyReturnedQty = item.returnItems.reduce((acc, r) => acc + r.quantity, 0);
+      return alreadyReturnedQty < item.quantity;
+    }).map(item => {
+      const alreadyReturnedQty = item.returnItems.reduce((acc, r) => acc + r.quantity, 0);
+      return {
+        id: item.id,
+        quantity: item.quantity - alreadyReturnedQty,
+        priceAtPurchase: item.priceAtPurchase,
+        variant: {
+          id: item.variant.id,
+          name: item.variant.name,
+          featuredImage: item.variant.featuredImage,
+          product: {
+            name: item.variant.product.name
+          }
+        }
+      };
+    });
+
+    if (returnableItems.length === 0) {
+      throw new Error('No items available to return for this order.');
+    }
+
+    return {
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      customerId: order.customerId,
+      date: order.createdAt,
+      items: returnableItems
+    };
+  },
+
+  createReturn: async (orderId: string, items: { orderItemId: string, quantity: number, reason: string, details?: string }[]) => {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId }
+    });
+    
+    if (!order) throw new Error("Order not found");
+
+    // Generate unique RMA
+    const count = await prisma.returnRequest.count();
+    const rmaId = `RET-${10000 + count + 1}`;
+
+    // Calculate initial refund amount based on items
+    let totalRefund = 0;
+    for (const item of items) {
+      const orderItem = await prisma.orderItem.findUnique({ where: { id: item.orderItemId }});
+      if (orderItem) {
+        totalRefund += orderItem.priceAtPurchase * item.quantity;
+      }
+    }
+
+    const returnRequest = await prisma.returnRequest.create({
+      data: {
+        rmaId,
+        orderId: order.id,
+        customerId: order.customerId,
+        reason: items[0]?.reason || 'Customer Return',
+        customerNote: items[0]?.details || '',
+        refundAmount: totalRefund,
+        status: 'REQUESTED',
+        items: {
+          create: items.map(item => ({
+            orderItemId: item.orderItemId,
+            quantity: item.quantity,
+          }))
+        }
+      },
+      include: {
+        items: true
+      }
+    });
+
+    return returnRequest;
+  },
+
   getReturns: async (page: number, limit: number, search?: string, status?: string, customerId?: string) => {
     const skip = (page - 1) * limit;
 

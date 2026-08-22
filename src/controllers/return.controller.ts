@@ -1,6 +1,32 @@
 import { Request, Response } from 'express';
 import { returnService } from '../services/return.service';
 
+export const verifyOrderForReturn = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber, email } = req.query;
+    if (!orderNumber || !email) {
+      return res.status(400).json({ error: 'orderNumber and email are required' });
+    }
+    const data = await returnService.verifyOrderForReturn(orderNumber as string, email as string);
+    res.json(data);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
+export const createReturn = async (req: Request, res: Response) => {
+  try {
+    const { orderId, items } = req.body;
+    if (!orderId || !items || !items.length) {
+      return res.status(400).json({ error: 'orderId and items are required' });
+    }
+    const data = await returnService.createReturn(orderId, items);
+    res.status(201).json(data);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
 export const getReturns = async (req: Request, res: Response) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
