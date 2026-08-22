@@ -65,6 +65,49 @@ export const reviewService = {
   },
 
   /**
+   * Customer fetches pending products to review
+   */
+  async getPendingReviews(customerId: string): Promise<any[]> {
+    const orders = await prisma.order.findMany({
+      where: { customerId, status: 'DELIVERED' },
+      include: {
+        items: {
+          include: {
+            variant: {
+              include: { product: true }
+            }
+          }
+        }
+      }
+    });
+
+    const reviewedProducts = await prisma.review.findMany({
+      where: { customerId },
+      select: { productId: true }
+    });
+    const reviewedProductIds = new Set(reviewedProducts.map(r => r.productId));
+
+    const pendingProductsMap = new Map();
+    for (const order of orders) {
+      for (const item of order.items) {
+        const product = item.variant.product;
+        if (!reviewedProductIds.has(product.id) && !pendingProductsMap.has(product.id)) {
+          pendingProductsMap.set(product.id, {
+            id: `pending-${product.id}`, // dummy id for React key
+            productId: product.id,
+            name: product.name,
+            image: item.variant.featuredImage || '', // fallback
+            orderId: order.orderNumber,
+            purchasedDate: order.createdAt.toISOString().split('T')[0]
+          });
+        }
+      }
+    }
+
+    return Array.from(pendingProductsMap.values());
+  },
+
+  /**
    * Customer fetches their own reviews
    */
   async getCustomerReviews(customerId: string): Promise<Review[]> {
