@@ -1,6 +1,5 @@
-import { PrismaClient, ReviewStatus, Review } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { ReviewStatus, Review } from '@prisma/client';
+import prisma from '../config/prisma';
 
 export const reviewService = {
   /**
