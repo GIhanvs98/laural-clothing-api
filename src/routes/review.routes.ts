@@ -8,15 +8,18 @@ import {
   updateReviewStatus,
   deleteReview
 } from '../controllers/review.controller';
+import { authenticateJWT, requirePermission } from '../middlewares/auth.middleware';
+import { checkHoneypot } from '../middlewares/honeypot.middleware';
+import { verifyTurnstile } from '../middlewares/turnstile.middleware';
 
 const router = Router();
 
-router.post('/', createReview);
+router.post('/', authenticateJWT, checkHoneypot, verifyTurnstile, createReview);
 router.get('/product/:productId', getReviewsForProduct);
-router.get('/customer/:customerId', getCustomerReviews);
-router.get('/pending/:customerId', getPendingReviews);
-router.get('/', getAllReviews);
-router.patch('/:id/status', updateReviewStatus);
-router.delete('/:id', deleteReview);
+router.get('/customer/:customerId', authenticateJWT, getCustomerReviews);
+router.get('/pending/:customerId', authenticateJWT, getPendingReviews);
+router.get('/', authenticateJWT, requirePermission("reviews:view"), getAllReviews);
+router.patch('/:id/status', authenticateJWT, requirePermission("reviews:approve"), updateReviewStatus);
+router.delete('/:id', authenticateJWT, requirePermission("reviews:reject"), deleteReview);
 
 export default router;

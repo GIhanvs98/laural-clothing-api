@@ -156,7 +156,7 @@ export const validateVoucher = async (req: Request, res: Response) => {
 
 export const processPosOrder = async (req: Request, res: Response) => {
   try {
-    const { branchId, sessionId, customerId, items, paymentMethod, appliedVouchers, subtotal, total, tax } = req.body;
+    const { branchId, sessionId, customerId, items, paymentMethod, appliedVouchers } = req.body;
     
     const orderNumber = `POS-${Date.now()}`;
     
@@ -173,6 +173,29 @@ export const processPosOrder = async (req: Request, res: Response) => {
       }
     }
     
+    // 1.5 Server-side recalculation
+    let calculatedSubtotal = 0;
+    const orderItems = [];
+
+    for (const item of items) {
+      const variant = await prisma.productVariant.findUnique({
+        where: { id: item.variantId }
+      });
+      if (!variant) return res.status(400).json({ error: `Variant ${item.variantId} not found` });
+
+      const price = variant.salePrice ?? variant.price;
+      calculatedSubtotal += price * item.qty;
+
+      orderItems.push({
+        variantId: item.variantId,
+        quantity: item.qty,
+        priceAtPurchase: price
+      });
+    }
+
+    const calculatedTax = 0;
+    const calculatedTotal = Math.max(0, (calculatedSubtotal + calculatedTax) - voucherDeduction);
+
     // 2. Create Order
     const order = await prisma.order.create({
       data: {
@@ -181,19 +204,15 @@ export const processPosOrder = async (req: Request, res: Response) => {
         status: 'DELIVERED', // POS orders are delivered instantly
         paymentStatus: 'PAID',
         paymentMethod,
-        subtotal,
-        tax,
+        subtotal: calculatedSubtotal,
+        tax: calculatedTax,
         shippingFee: 0,
-        total: Math.max(0, total - voucherDeduction),
+        total: calculatedTotal,
         branchId,
         posSessionId: sessionId,
         customerId: customerId || undefined,
         items: {
-          create: items.map((i: any) => ({
-            variantId: i.variantId,
-            quantity: i.qty,
-            priceAtPurchase: i.price
-          }))
+          create: orderItems
         }
       }
     });

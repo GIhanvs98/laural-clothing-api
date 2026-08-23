@@ -2,8 +2,14 @@ import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import dotenv from "dotenv";
+import cookieParser from "cookie-parser";
 import { logger } from "./utils/logger";
 import { errorHandler, AppError } from "./middlewares/errorHandler";
+import { globalApiLimiter } from "./middlewares/rateLimiter.middleware";
+import { csrfMiddleware } from "./middlewares/csrf.middleware";
+import { registerScheduledJobs } from "./jobs/scheduler";
+import { sanitizeMiddleware } from "./middlewares/sanitize.middleware";
+import { emergencyKillSwitch } from "./middlewares/killSwitch.middleware";
 
 // Import Routers
 import productRoutes from "./routes/product.routes";
@@ -36,12 +42,52 @@ import { SettingService } from "./services/setting.service";
 dotenv.config();
 
 const app = express();
+app.set('trust proxy', 1); // Trust the first proxy (e.g. Cloudflare) to accurately read X-Forwarded-For
 
 // Middlewares
-app.use(helmet());
-app.use(cors());
+// Hardened Helmet Configuration
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"], // unsafe-inline often needed for basic apps, adjust if strict
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "blob:", "https:"], // Allow images from https (our S3 proxy redirects to AWS)
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'", "https:", "data:"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"],
+      upgradeInsecureRequests: [],
+    },
+  },
+  crossOriginEmbedderPolicy: false, // Can break images from S3 if true without proper CORS
+  crossOriginOpenerPolicy: { policy: "same-origin" },
+  crossOriginResourcePolicy: { policy: "cross-origin" }, // Allows loading images cross-origin
+  dnsPrefetchControl: { allow: false },
+  frameguard: { action: "deny" }, // Prevents clickjacking
+  hidePoweredBy: true, // Removes X-Powered-By header
+  hsts: {
+    maxAge: 31536000, // 1 year
+    includeSubDomains: true,
+    preload: true,
+  },
+  ieNoOpen: true,
+  noSniff: true,
+  referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+  xssFilter: true, // Adds X-XSS-Protection
+}));
+app.use(cors({
+  origin: process.env.FRONTEND_URL || "http://localhost:3000",
+  credentials: true
+}));
+
+app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Apply CSRF Protection to all routes
+app.use(csrfMiddleware);
 
 // Request logging middleware
 app.use((req: Request, res: Response, next: NextFunction) => {
@@ -51,6 +97,10 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 
 // API Routes
 const API_PREFIX = "/api/v1";
+
+app.use(API_PREFIX, globalApiLimiter);
+app.use(API_PREFIX, sanitizeMiddleware);
+app.use(API_PREFIX, emergencyKillSwitch);
 
 app.use(`${API_PREFIX}/auth`, authRoutes);
 app.use(`${API_PREFIX}/roles`, roleRoutes);
@@ -101,6 +151,9 @@ app.listen(PORT as number, '0.0.0.0', async () => {
   } catch (err) {
     logger.error("Failed to seed default roles and permissions on startup", err);
   }
+
+  // Register background cron jobs
+  registerScheduledJobs();
 });
 
 export default app;

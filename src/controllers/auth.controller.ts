@@ -1,6 +1,29 @@
-import { Response, NextFunction } from "express";
+import { Request, Response, NextFunction } from "express";
 import { AuthService } from "../services/auth.service";
 import { AuthRequest } from "../middlewares/auth.middleware";
+import { validatePasswordStrength } from "../utils/password.util";
+import { trackFailedLogin } from "../middlewares/loginAttempt.middleware";
+import { redisClient } from "../config/redis";
+import { logger } from "../utils/logger";
+import { generateFingerprint } from "../utils/jwt";
+
+const setTokenCookies = (res: Response, accessToken: string, refreshToken: string) => {
+  const isProd = process.env.NODE_ENV === "production";
+  
+  res.cookie("laural_access_token", accessToken, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: "lax",
+    maxAge: 60 * 60 * 1000, // 1 hour
+  });
+
+  res.cookie("laural_refresh_token", refreshToken, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: "lax",
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  });
+};
 
 export class AuthController {
   static async register(req: AuthRequest, res: Response, next: NextFunction) {
@@ -15,13 +38,20 @@ export class AuthController {
         return;
       }
 
-      if (password.length < 6) {
+      const passwordValidation = validatePasswordStrength(password);
+      if (!passwordValidation.isValid) {
         res.status(400).json({
           success: false,
-          message: "Password must be at least 6 characters.",
+          message: passwordValidation.message,
         });
         return;
       }
+
+      const forwarded = req.headers['x-forwarded-for'] as string | undefined;
+      const ip = (forwarded ? forwarded.split(',')[0]?.trim() : undefined) ||
+                 req.socket?.remoteAddress || 'unknown';
+      const userAgent = (req.headers['user-agent'] as string) || 'unknown';
+      const fingerprint = generateFingerprint(ip, userAgent);
 
       const result = await AuthService.registerPublicUser({
         email,
@@ -29,12 +59,15 @@ export class AuthController {
         fullName: fullName || name,
         birthday,
         phone,
+        fingerprint,
       });
+
+      setTokenCookies(res, result.accessToken, result.refreshToken);
 
       res.status(201).json({
         success: true,
         message: "Registration successful.",
-        data: result,
+        data: { user: result.user },
       });
     } catch (error) {
       next(error);
@@ -42,6 +75,9 @@ export class AuthController {
   }
 
   static async login(req: AuthRequest, res: Response, next: NextFunction) {
+    const forwarded = req.headers['x-forwarded-for'] as string | undefined;
+    const ip = (forwarded ? forwarded.split(',')[0]?.trim() : undefined) ||
+               req.socket?.remoteAddress || 'unknown';
     try {
       const { email, password } = req.body;
 
@@ -53,14 +89,28 @@ export class AuthController {
         return;
       }
 
-      const result = await AuthService.loginUser({ email, password });
+      const userAgent = (req.headers['user-agent'] as string) || 'unknown';
+      const fingerprint = generateFingerprint(ip, userAgent);
+
+      const result = await AuthService.loginUser({ email, password, fingerprint });
+
+      // Clear failure counters on successful login
+      await redisClient.del(`login:failures:${ip}`);
+      await redisClient.del(`login:locked:${ip}`);
+      await redisClient.del(`login:alerted:${ip}`);
+      logger.info('Successful login', { email, ip });
+
+      setTokenCookies(res, result.accessToken, result.refreshToken);
 
       res.status(200).json({
         success: true,
         message: "Login successful.",
-        data: result,
+        data: { user: result.user },
       });
     } catch (error) {
+      // Track failure before propagating
+      const { email } = req.body;
+      await trackFailedLogin(ip, email || 'unknown');
       next(error);
     }
   }
@@ -68,6 +118,7 @@ export class AuthController {
   static async refresh(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const refreshToken =
+        req.cookies?.laural_refresh_token ||
         req.body?.refreshToken ||
         (req.headers["x-refresh-token"] as string) ||
         req.query?.refreshToken;
@@ -80,12 +131,20 @@ export class AuthController {
         return;
       }
 
-      const result = await AuthService.refreshAccessToken(refreshToken as string);
+      const forwarded = req.headers['x-forwarded-for'] as string | undefined;
+      const ip = (forwarded ? forwarded.split(',')[0]?.trim() : undefined) ||
+                 req.socket?.remoteAddress || 'unknown';
+      const userAgent = (req.headers['user-agent'] as string) || 'unknown';
+      const fingerprint = generateFingerprint(ip, userAgent);
+
+      const result = await AuthService.refreshAccessToken(refreshToken as string, fingerprint);
+
+      setTokenCookies(res, result.accessToken, refreshToken as string);
 
       res.status(200).json({
         success: true,
         message: "Token refreshed successfully.",
-        data: result,
+        data: { user: result.user },
       });
     } catch (error) {
       next(error);
@@ -94,10 +153,13 @@ export class AuthController {
 
   static async logout(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const refreshToken = req.body?.refreshToken;
+      const refreshToken = req.cookies?.laural_refresh_token || req.body?.refreshToken;
       const userId = req.user?.userId;
 
       await AuthService.logoutUser(refreshToken, userId);
+
+      res.clearCookie("laural_access_token");
+      res.clearCookie("laural_refresh_token");
 
       res.status(200).json({
         success: true,
@@ -123,6 +185,27 @@ export class AuthController {
       res.status(200).json({
         success: true,
         data: user,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getCSRFToken(req: Request, res: Response, next: NextFunction) {
+    try {
+      // The csrfMiddleware attaches the token to the request object.
+      const csrfToken = (req as any).csrfToken;
+      
+      if (!csrfToken) {
+        return res.status(500).json({
+          success: false,
+          message: "CSRF protection is not configured properly."
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        data: { csrfToken },
       });
     } catch (error) {
       next(error);

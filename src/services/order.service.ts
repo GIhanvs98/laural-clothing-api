@@ -17,13 +17,9 @@ export interface QuickDispatchPayload {
   items: {
     variantId: string;
     quantity: number;
-    price: number;
+    // Removed client-provided prices, we calculate server-side
   }[];
   paymentMethod: string; // 'COD', 'BANK_TRANSFER', 'CARD_MANUAL'
-  subtotal: number;
-  shippingFee: number;
-  tax: number;
-  total: number;
 }
 
 export const orderService = {
@@ -139,6 +135,31 @@ export const orderService = {
       const orderCount = await tx.order.count();
       const orderNumber = `QD-${10000 + orderCount + 1}`;
 
+      // 4.5 Server-side Price Recalculation
+      let subtotal = 0;
+      const orderItems = [];
+
+      for (const item of data.items) {
+        const variant = await tx.productVariant.findUnique({
+          where: { id: item.variantId }
+        });
+
+        if (!variant) throw new Error(`Variant ${item.variantId} not found`);
+
+        const price = variant.salePrice ?? variant.price;
+        subtotal += price * item.quantity;
+
+        orderItems.push({
+          variantId: item.variantId,
+          quantity: item.quantity,
+          priceAtPurchase: price
+        });
+      }
+
+      const shippingFee = 400; // Flat fee or calculate based on logic
+      const tax = 0;
+      const total = subtotal + shippingFee + tax;
+
       // 5. Create Order
       const paymentStatus = data.paymentMethod === 'COD' ? 'UNPAID' : 'PAID';
 
@@ -151,18 +172,14 @@ export const orderService = {
           status: 'PENDING',
           paymentMethod: data.paymentMethod,
           paymentStatus: paymentStatus,
-          subtotal: data.subtotal,
-          shippingFee: data.shippingFee,
-          tax: data.tax,
-          total: data.total,
+          subtotal: subtotal,
+          shippingFee: shippingFee,
+          tax: tax,
+          total: total,
           shippingAddress: data.customer,
           billingAddress: data.customer,
           items: {
-            create: data.items.map(item => ({
-              variantId: item.variantId,
-              quantity: item.quantity,
-              priceAtPurchase: item.price
-            }))
+            create: orderItems
           }
         },
         include: {
