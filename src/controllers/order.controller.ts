@@ -23,7 +23,7 @@ export const searchCustomer = async (req: Request, res: Response) => {
 export const createQuickDispatch = async (req: Request, res: Response) => {
   try {
     // Basic validation
-    const { customer, branchId, items, paymentMethod, subtotal, shippingFee, tax, total } = req.body;
+    const { customer, branchId, items, paymentMethod } = req.body;
     
     if (!customer || !customer.phone || !customer.firstName || !customer.lastName || !customer.addressLine1 || !customer.city) {
       return res.status(400).json({ error: 'Incomplete customer details' });
