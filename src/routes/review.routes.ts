@@ -10,10 +10,11 @@ import {
 } from '../controllers/review.controller';
 import { authenticateJWT, requirePermission } from '../middlewares/auth.middleware';
 import { checkHoneypot } from '../middlewares/honeypot.middleware';
+import { verifyTurnstile } from '../middlewares/turnstile.middleware';
 
 const router = Router();
 
-router.post('/', authenticateJWT, checkHoneypot, createReview);
+router.post('/', authenticateJWT, checkHoneypot, verifyTurnstile, createReview);
 router.get('/product/:productId', getReviewsForProduct);
 router.get('/customer/:customerId', authenticateJWT, getCustomerReviews);
 router.get('/pending/:customerId', authenticateJWT, getPendingReviews);
