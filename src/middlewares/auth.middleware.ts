@@ -8,15 +8,10 @@ export interface AuthRequest extends Request {
 export function authenticateJWT(req: AuthRequest, res: Response, next: NextFunction): void {
   const authHeader = req.headers.authorization;
 
-  if (!authHeader || typeof authHeader !== "string" || !authHeader.startsWith("Bearer ")) {
-    res.status(401).json({
-      success: false,
-      message: "Authentication token missing or invalid",
-    });
-    return;
-  }
+  const token = 
+    req.cookies?.laural_access_token || 
+    (authHeader && authHeader.startsWith("Bearer ") ? authHeader.split(" ")[1] : null);
 
-  const token = authHeader.split(" ")[1];
   if (!token) {
     res.status(401).json({
       success: false,
@@ -40,16 +35,16 @@ export function authenticateJWT(req: AuthRequest, res: Response, next: NextFunct
 
 export function optionalAuth(req: AuthRequest, res: Response, next: NextFunction): void {
   const authHeader = req.headers.authorization;
+  const token = 
+    req.cookies?.laural_access_token || 
+    (authHeader && typeof authHeader === "string" && authHeader.startsWith("Bearer ") ? authHeader.split(" ")[1] : null);
 
-  if (authHeader && typeof authHeader === "string" && authHeader.startsWith("Bearer ")) {
-    const token = authHeader.split(" ")[1];
-    if (token) {
-      try {
-        const payload = verifyAccessToken(token);
-        req.user = payload;
-      } catch {
-        // Ignore invalid token for optional auth
-      }
+  if (token) {
+    try {
+      const payload = verifyAccessToken(token);
+      req.user = payload;
+    } catch {
+      // Ignore invalid token for optional auth
     }
   }
 

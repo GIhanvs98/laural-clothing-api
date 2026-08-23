@@ -2,6 +2,24 @@ import { Response, NextFunction } from "express";
 import { AuthService } from "../services/auth.service";
 import { AuthRequest } from "../middlewares/auth.middleware";
 
+const setTokenCookies = (res: Response, accessToken: string, refreshToken: string) => {
+  const isProd = process.env.NODE_ENV === "production";
+  
+  res.cookie("laural_access_token", accessToken, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: "lax",
+    maxAge: 60 * 60 * 1000, // 1 hour
+  });
+
+  res.cookie("laural_refresh_token", refreshToken, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: "lax",
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  });
+};
+
 export class AuthController {
   static async register(req: AuthRequest, res: Response, next: NextFunction) {
     try {
@@ -31,10 +49,12 @@ export class AuthController {
         phone,
       });
 
+      setTokenCookies(res, result.accessToken, result.refreshToken);
+
       res.status(201).json({
         success: true,
         message: "Registration successful.",
-        data: result,
+        data: { user: result.user },
       });
     } catch (error) {
       next(error);
@@ -55,10 +75,12 @@ export class AuthController {
 
       const result = await AuthService.loginUser({ email, password });
 
+      setTokenCookies(res, result.accessToken, result.refreshToken);
+
       res.status(200).json({
         success: true,
         message: "Login successful.",
-        data: result,
+        data: { user: result.user },
       });
     } catch (error) {
       next(error);
@@ -68,6 +90,7 @@ export class AuthController {
   static async refresh(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const refreshToken =
+        req.cookies?.laural_refresh_token ||
         req.body?.refreshToken ||
         (req.headers["x-refresh-token"] as string) ||
         req.query?.refreshToken;
@@ -82,10 +105,12 @@ export class AuthController {
 
       const result = await AuthService.refreshAccessToken(refreshToken as string);
 
+      setTokenCookies(res, result.accessToken, refreshToken as string);
+
       res.status(200).json({
         success: true,
         message: "Token refreshed successfully.",
-        data: result,
+        data: { user: result.user },
       });
     } catch (error) {
       next(error);
@@ -94,10 +119,13 @@ export class AuthController {
 
   static async logout(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const refreshToken = req.body?.refreshToken;
+      const refreshToken = req.cookies?.laural_refresh_token || req.body?.refreshToken;
       const userId = req.user?.userId;
 
       await AuthService.logoutUser(refreshToken, userId);
+
+      res.clearCookie("laural_access_token");
+      res.clearCookie("laural_refresh_token");
 
       res.status(200).json({
         success: true,
