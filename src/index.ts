@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
 import { logger } from "./utils/logger";
 import { errorHandler, AppError } from "./middlewares/errorHandler";
+import { globalApiLimiter } from "./middlewares/rateLimiter.middleware";
 
 // Import Routers
 import productRoutes from "./routes/product.routes";
@@ -57,6 +58,8 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 
 // API Routes
 const API_PREFIX = "/api/v1";
+
+app.use(API_PREFIX, globalApiLimiter);
 
 app.use(`${API_PREFIX}/auth`, authRoutes);
 app.use(`${API_PREFIX}/roles`, roleRoutes);
