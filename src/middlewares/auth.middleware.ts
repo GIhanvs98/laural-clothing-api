@@ -1,8 +1,20 @@
 import { Request, Response, NextFunction } from "express";
 import { verifyAccessToken, JWTPayload } from "../utils/jwt";
+import { requestContext } from "../context/RequestContext";
 
 export interface AuthRequest extends Request {
   user?: JWTPayload;
+}
+
+function runWithContext(user: JWTPayload | undefined, next: NextFunction) {
+  const isAdmin = user?.roles?.some(r => r === 'ADMIN' || r === 'SUPER_ADMIN') || false;
+  requestContext.run({
+    userId: user?.userId || null,
+    role: isAdmin ? 'ADMIN' : (user ? 'USER' : 'GUEST'),
+    isAdmin
+  }, () => {
+    next();
+  });
 }
 
 export function authenticateJWT(req: AuthRequest, res: Response, next: NextFunction): void {
@@ -23,7 +35,7 @@ export function authenticateJWT(req: AuthRequest, res: Response, next: NextFunct
   try {
     const payload = verifyAccessToken(token);
     req.user = payload;
-    next();
+    runWithContext(payload, next);
   } catch (error: any) {
     res.status(401).json({
       success: false,
@@ -48,7 +60,7 @@ export function optionalAuth(req: AuthRequest, res: Response, next: NextFunction
     }
   }
 
-  next();
+  runWithContext(req.user, next);
 }
 
 export function requireRole(...allowedRoles: string[]) {
