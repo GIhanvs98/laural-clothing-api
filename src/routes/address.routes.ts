@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import { getAddresses, addAddress, updateAddress, deleteAddress, setDefault } from '../controllers/address.controller';
+import { authenticateJWT } from '../middlewares/auth.middleware';
 
 const router = Router();
 
-router.get('/', getAddresses);
-router.post('/', addAddress);
-router.put('/:id', updateAddress);
-router.delete('/:id', deleteAddress);
-router.patch('/:id/default', setDefault);
+router.get('/', authenticateJWT, getAddresses);
+router.post('/', authenticateJWT, addAddress);
+router.put('/:id', authenticateJWT, updateAddress);
+router.delete('/:id', authenticateJWT, deleteAddress);
+router.patch('/:id/default', authenticateJWT, setDefault);
 
 export default router;

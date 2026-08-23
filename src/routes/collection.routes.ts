@@ -7,14 +7,15 @@ import {
   deleteCollection,
   getCollectionProducts
 } from '../controllers/collection.controller';
+import { authenticateJWT, requirePermission } from '../middlewares/auth.middleware';
 
 const router = Router();
 
 router.get('/', getCollections);
-router.post('/', createCollection);
+router.post('/', authenticateJWT, requirePermission("collections:manage"), createCollection);
 router.get('/:id', getCollectionById);
-router.put('/:id', updateCollection);
-router.delete('/:id', deleteCollection);
+router.put('/:id', authenticateJWT, requirePermission("collections:manage"), updateCollection);
+router.delete('/:id', authenticateJWT, requirePermission("collections:manage"), deleteCollection);
 router.get('/:slug/products', getCollectionProducts);
 
 export default router;
