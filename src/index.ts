@@ -37,6 +37,7 @@ import { SettingService } from "./services/setting.service";
 dotenv.config();
 
 const app = express();
+app.set('trust proxy', 1); // Trust the first proxy (e.g. Cloudflare) to accurately read X-Forwarded-For
 
 // Middlewares
 app.use(helmet());
