@@ -41,7 +41,38 @@ const app = express();
 app.set('trust proxy', 1); // Trust the first proxy (e.g. Cloudflare) to accurately read X-Forwarded-For
 
 // Middlewares
-app.use(helmet());
+// Hardened Helmet Configuration
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"], // unsafe-inline often needed for basic apps, adjust if strict
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "blob:", "https:"], // Allow images from https (our S3 proxy redirects to AWS)
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'", "https:", "data:"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"],
+      upgradeInsecureRequests: [],
+    },
+  },
+  crossOriginEmbedderPolicy: false, // Can break images from S3 if true without proper CORS
+  crossOriginOpenerPolicy: { policy: "same-origin" },
+  crossOriginResourcePolicy: { policy: "cross-origin" }, // Allows loading images cross-origin
+  dnsPrefetchControl: { allow: false },
+  frameguard: { action: "deny" }, // Prevents clickjacking
+  hidePoweredBy: true, // Removes X-Powered-By header
+  hsts: {
+    maxAge: 31536000, // 1 year
+    includeSubDomains: true,
+    preload: true,
+  },
+  ieNoOpen: true,
+  noSniff: true,
+  referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+  xssFilter: true, // Adds X-XSS-Protection
+}));
 app.use(cors({
   origin: process.env.FRONTEND_URL || "http://localhost:3000",
   credentials: true
