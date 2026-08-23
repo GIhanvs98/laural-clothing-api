@@ -1,5 +1,6 @@
 import cron from 'node-cron';
 import { auditDigestService } from '../services/auditDigest.service';
+import { dbBackupService } from './dbBackup';
 import { logger } from '../utils/logger';
 
 const PENTEST_REMINDER_MESSAGE = [
@@ -55,5 +56,11 @@ export function registerScheduledJobs() {
     cron.schedule(expression.trim(), sendPentestReminder, { timezone: 'UTC' });
   }
 
-  logger.info('[Scheduler] Registered jobs: [weekly-audit-digest @ Monday 08:00], [quarterly-pentest-reminder x4]');
+  // Daily Encrypted Database Backup at 02:00 UTC
+  cron.schedule('0 2 * * *', async () => {
+    logger.info('[Scheduler] Running daily encrypted database backup...');
+    await dbBackupService.runEncryptedBackup();
+  }, { timezone: 'UTC' });
+
+  logger.info('[Scheduler] Registered jobs: [weekly-audit-digest @ Monday 08:00], [quarterly-pentest-reminder x4], [daily-db-backup @ 02:00 UTC]');
 }

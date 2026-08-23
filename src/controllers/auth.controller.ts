@@ -5,6 +5,7 @@ import { validatePasswordStrength } from "../utils/password.util";
 import { trackFailedLogin } from "../middlewares/loginAttempt.middleware";
 import { redisClient } from "../config/redis";
 import { logger } from "../utils/logger";
+import { generateFingerprint } from "../utils/jwt";
 
 const setTokenCookies = (res: Response, accessToken: string, refreshToken: string) => {
   const isProd = process.env.NODE_ENV === "production";
@@ -46,12 +47,19 @@ export class AuthController {
         return;
       }
 
+      const forwarded = req.headers['x-forwarded-for'] as string | undefined;
+      const ip = (forwarded ? forwarded.split(',')[0]?.trim() : undefined) ||
+                 req.socket?.remoteAddress || 'unknown';
+      const userAgent = (req.headers['user-agent'] as string) || 'unknown';
+      const fingerprint = generateFingerprint(ip, userAgent);
+
       const result = await AuthService.registerPublicUser({
         email,
         password,
         fullName: fullName || name,
         birthday,
         phone,
+        fingerprint,
       });
 
       setTokenCookies(res, result.accessToken, result.refreshToken);
@@ -81,7 +89,10 @@ export class AuthController {
         return;
       }
 
-      const result = await AuthService.loginUser({ email, password });
+      const userAgent = (req.headers['user-agent'] as string) || 'unknown';
+      const fingerprint = generateFingerprint(ip, userAgent);
+
+      const result = await AuthService.loginUser({ email, password, fingerprint });
 
       // Clear failure counters on successful login
       await redisClient.del(`login:failures:${ip}`);
@@ -120,7 +131,13 @@ export class AuthController {
         return;
       }
 
-      const result = await AuthService.refreshAccessToken(refreshToken as string);
+      const forwarded = req.headers['x-forwarded-for'] as string | undefined;
+      const ip = (forwarded ? forwarded.split(',')[0]?.trim() : undefined) ||
+                 req.socket?.remoteAddress || 'unknown';
+      const userAgent = (req.headers['user-agent'] as string) || 'unknown';
+      const fingerprint = generateFingerprint(ip, userAgent);
+
+      const result = await AuthService.refreshAccessToken(refreshToken as string, fingerprint);
 
       setTokenCookies(res, result.accessToken, refreshToken as string);
 

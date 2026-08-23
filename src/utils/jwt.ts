@@ -20,11 +20,23 @@ const getPublicKey = (): Secret => {
 const ACCESS_TOKEN_EXPIRY = (process.env.JWT_ACCESS_EXPIRY || "1h") as any;
 const REFRESH_TOKEN_EXPIRY = (process.env.JWT_REFRESH_EXPIRY || "7d") as any;
 
+import crypto from 'crypto';
+
 export interface JWTPayload {
   userId: string;
   email: string;
   roles: string[];
   permissions: string[];
+  fingerprint?: string;
+  iat?: number;
+  exp?: number;
+}
+
+export function generateFingerprint(ip: string, userAgent: string): string {
+  return crypto
+    .createHash('sha256')
+    .update(`${ip}|${userAgent}`)
+    .digest('hex');
 }
 
 export function generateAccessToken(payload: JWTPayload): string {

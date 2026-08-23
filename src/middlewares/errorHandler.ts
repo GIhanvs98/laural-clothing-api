@@ -33,11 +33,18 @@ export const errorHandler = (
     logger.error(err.stack);
   }
 
+  // Dark Security: Never leak internal error details to the client.
+  // 500-level errors or unknown errors get obfuscated.
+  const isDev = process.env.NODE_ENV === "development";
+  if (statusCode >= 500 && !isDev) {
+    message = "An error occurred";
+  }
+
   res.status(statusCode).json({
     success: false,
     error: {
       message,
-      ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
+      ...(isDev && { stack: err.stack }),
     },
   });
 };
