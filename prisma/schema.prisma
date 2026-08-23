@@ -412,6 +412,10 @@ model Order {
   labelUrl        String?
   trackingUrl     String?
   
+  fraudScore      Float       @default(0)
+  riskLevel       String      @default("LOW") // LOW, MEDIUM, HIGH, BLOCKED
+  fraudSignals    Json?
+  
   appliedVouchers ExchangeVoucher[] @relation("OrderVoucher")
   
   branchId        String?

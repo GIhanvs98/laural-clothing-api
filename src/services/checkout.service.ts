@@ -2,6 +2,8 @@ import prisma from '../config/prisma';
 import { redisClient } from '../config/redis';
 import { inventoryService } from './inventory.service';
 import { paymentService } from './payment.service';
+import { fraudService } from './fraud.service';
+import { alertService } from './alert.service';
 
 export const checkoutService = {
   /**
@@ -53,7 +55,7 @@ export const checkoutService = {
   /**
    * Initiates checkout, resolves identity, and creates an order.
    */
-  async initiateCheckout(cartId: string, customerData: { phone: string; email?: string; firstName?: string; lastName?: string; isGuest?: boolean }, shippingAddress: any, paymentMethod?: string) {
+  async initiateCheckout(cartId: string, customerData: { phone: string; email?: string; firstName?: string; lastName?: string; isGuest?: boolean; deviceFingerprint?: string }, shippingAddress: any, paymentMethod?: string) {
     const isGuest = customerData.isGuest !== false;
     let cart;
 
@@ -101,6 +103,22 @@ export const checkoutService = {
     // 2. Calculation
     const totals = await this.calculateCheckout(cartId, shippingAddress, isGuest);
 
+    // 2.5 Evaluate Fraud Risk
+    // deviceFingerprint is not explicitly passed to initiateCheckout, so we'll optionally pass it.
+    // Wait, the signature of initiateCheckout doesn't have deviceFingerprint. Let's update the signature to accept it.
+    const fraudEvaluation = await fraudService.evaluateCheckoutRisk(
+      cart,
+      customerData,
+      shippingAddress,
+      totals,
+      customerData.deviceFingerprint // I will pass this from controller
+    );
+
+    if (fraudEvaluation.riskLevel === 'BLOCKED') {
+      await alertService.sendFraudAlert(cartId, fraudEvaluation.fraudScore, fraudEvaluation.riskLevel, fraudEvaluation.fraudSignals, cartId);
+      throw new Error('Checkout blocked due to high fraud risk.');
+    }
+
     // 3. Create Order
     const orderNumber = `LC-${Date.now().toString().slice(-6)}`;
     
@@ -116,6 +134,9 @@ export const checkoutService = {
         tax: totals.tax,
         total: totals.total,
         shippingAddress: shippingAddress,
+        fraudScore: fraudEvaluation.fraudScore,
+        riskLevel: fraudEvaluation.riskLevel,
+        fraudSignals: fraudEvaluation.fraudSignals,
         items: {
           create: cart.items.map((item: any) => ({
             variantId: item.variantId,
@@ -128,6 +149,10 @@ export const checkoutService = {
         items: true,
       },
     });
+
+    if (fraudEvaluation.riskLevel === 'HIGH') {
+      await alertService.sendFraudAlert(order.orderNumber, fraudEvaluation.fraudScore, fraudEvaluation.riskLevel, fraudEvaluation.fraudSignals, cartId);
+    }
 
     // 3.5 Deduct Inventory
     let onlineBranch = await prisma.branch.findFirst({

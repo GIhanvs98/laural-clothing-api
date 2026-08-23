@@ -76,8 +76,13 @@ export const initiateCheckout = async (req: Request, res: Response) => {
         return res.status(403).json({ error: 'Invalid or expired verification token' });
       }
       
-      // Consume the token so it can't be reused
+    // Consume the token so it can't be reused
       await redisClient.del(tokenKey);
+    }
+    
+    // Inject fingerprint for fraud scoring
+    if (deviceFingerprint) {
+      customer.deviceFingerprint = deviceFingerprint;
     }
 
     const order = await checkoutService.initiateCheckout(cartId, customer, shippingAddress, paymentMethod);
