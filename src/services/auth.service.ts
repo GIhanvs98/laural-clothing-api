@@ -10,11 +10,13 @@ export interface RegisterInput {
   name?: string;
   birthday?: string | Date | null;
   phone?: string;
+  fingerprint?: string;
 }
 
 export interface LoginInput {
   email: string;
   password: string;
+  fingerprint?: string;
 }
 
 export class AuthService {
@@ -146,6 +148,7 @@ export class AuthService {
       email: user.email,
       roles,
       permissions,
+      fingerprint: input.fingerprint,
     });
 
     const refreshToken = generateRefreshToken(user.id);
@@ -220,6 +223,7 @@ export class AuthService {
       email: user.email,
       roles,
       permissions,
+      fingerprint: input.fingerprint,
     });
 
     const refreshToken = generateRefreshToken(user.id);
@@ -265,7 +269,7 @@ export class AuthService {
   /**
    * Refresh Access Token
    */
-  static async refreshAccessToken(token: string) {
+  static async refreshAccessToken(token: string, fingerprint?: string) {
     if (!token) {
       throw new AppError("Refresh token is required.", 400);
     }
@@ -316,6 +320,7 @@ export class AuthService {
       email: user.email,
       roles,
       permissions,
+      fingerprint,
     });
 
     return {

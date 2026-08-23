@@ -8,6 +8,8 @@ import { errorHandler, AppError } from "./middlewares/errorHandler";
 import { globalApiLimiter } from "./middlewares/rateLimiter.middleware";
 import { csrfMiddleware } from "./middlewares/csrf.middleware";
 import { registerScheduledJobs } from "./jobs/scheduler";
+import { sanitizeMiddleware } from "./middlewares/sanitize.middleware";
+import { emergencyKillSwitch } from "./middlewares/killSwitch.middleware";
 
 // Import Routers
 import productRoutes from "./routes/product.routes";
@@ -97,6 +99,8 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 const API_PREFIX = "/api/v1";
 
 app.use(API_PREFIX, globalApiLimiter);
+app.use(API_PREFIX, sanitizeMiddleware);
+app.use(API_PREFIX, emergencyKillSwitch);
 
 app.use(`${API_PREFIX}/auth`, authRoutes);
 app.use(`${API_PREFIX}/roles`, roleRoutes);
