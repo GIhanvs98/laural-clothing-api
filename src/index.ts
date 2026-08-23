@@ -25,6 +25,10 @@ import returnRoutes from "./routes/return.routes";
 import wishlistRoutes from "./routes/wishlist.routes";
 import addressRoutes from "./routes/address.routes";
 import reportRoutes from "./routes/report.routes";
+import authRoutes from "./routes/auth.routes";
+import roleRoutes from "./routes/role.routes";
+import userRoutes from "./routes/user.routes";
+import { RoleService } from "./services/role.service";
 
 dotenv.config();
 
@@ -45,6 +49,9 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 // API Routes
 const API_PREFIX = "/api/v1";
 
+app.use(`${API_PREFIX}/auth`, authRoutes);
+app.use(`${API_PREFIX}/roles`, roleRoutes);
+app.use(`${API_PREFIX}/users`, userRoutes);
 app.use(`${API_PREFIX}/products`, productRoutes);
 app.use(`${API_PREFIX}/orders`, orderRoutes);
 app.use(`${API_PREFIX}/categories`, categoryRoutes);
@@ -80,8 +87,15 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT as number, '0.0.0.0', () => {
+app.listen(PORT as number, '0.0.0.0', async () => {
   logger.info(`Server is running in ${process.env.NODE_ENV || "development"} mode on port ${PORT}`);
+  try {
+    await RoleService.seedDefaultRolesAndPermissions();
+    logger.info("Default roles & permissions verified/seeded successfully.");
+  } catch (err) {
+    logger.error("Failed to seed default roles and permissions on startup", err);
+  }
 });
 
 export default app;
+
