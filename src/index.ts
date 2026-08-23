@@ -7,6 +7,7 @@ import { logger } from "./utils/logger";
 import { errorHandler, AppError } from "./middlewares/errorHandler";
 import { globalApiLimiter } from "./middlewares/rateLimiter.middleware";
 import { csrfMiddleware } from "./middlewares/csrf.middleware";
+import { registerScheduledJobs } from "./jobs/scheduler";
 
 // Import Routers
 import productRoutes from "./routes/product.routes";
@@ -146,6 +147,9 @@ app.listen(PORT as number, '0.0.0.0', async () => {
   } catch (err) {
     logger.error("Failed to seed default roles and permissions on startup", err);
   }
+
+  // Register background cron jobs
+  registerScheduledJobs();
 });
 
 export default app;
