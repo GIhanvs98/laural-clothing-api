@@ -1,4 +1,4 @@
-import { Response, NextFunction } from "express";
+import { Request, Response, NextFunction } from "express";
 import { AuthService } from "../services/auth.service";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { validatePasswordStrength } from "../utils/password.util";
@@ -153,6 +153,27 @@ export class AuthController {
       res.status(200).json({
         success: true,
         data: user,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getCSRFToken(req: Request, res: Response, next: NextFunction) {
+    try {
+      // The csrfMiddleware attaches the token to the request object.
+      const csrfToken = (req as any).csrfToken;
+      
+      if (!csrfToken) {
+        return res.status(500).json({
+          success: false,
+          message: "CSRF protection is not configured properly."
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        data: { csrfToken },
       });
     } catch (error) {
       next(error);

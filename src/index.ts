@@ -6,6 +6,7 @@ import cookieParser from "cookie-parser";
 import { logger } from "./utils/logger";
 import { errorHandler, AppError } from "./middlewares/errorHandler";
 import { globalApiLimiter } from "./middlewares/rateLimiter.middleware";
+import { csrfMiddleware } from "./middlewares/csrf.middleware";
 
 // Import Routers
 import productRoutes from "./routes/product.routes";
@@ -77,9 +78,13 @@ app.use(cors({
   origin: process.env.FRONTEND_URL || "http://localhost:3000",
   credentials: true
 }));
+
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Apply CSRF Protection to all routes
+app.use(csrfMiddleware);
 
 // Request logging middleware
 app.use((req: Request, res: Response, next: NextFunction) => {

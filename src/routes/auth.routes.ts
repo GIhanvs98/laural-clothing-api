@@ -12,5 +12,6 @@ router.post("/login", checkHoneypot, verifyTurnstile, loginRateLimiter, AuthCont
 router.post("/refresh", AuthController.refresh);
 router.post("/logout", authenticateJWT, AuthController.logout);
 router.get("/me", authenticateJWT, AuthController.getMe);
+router.get("/csrf", AuthController.getCSRFToken);
 
 export default router;
