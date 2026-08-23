@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { checkoutService } from '../services/checkout.service';
+import { velocityService } from '../services/velocity.service';
 
 const getIdentifier = (req: Request) => {
   const sessionId = req.headers['x-session-id'] as string;
@@ -47,7 +48,23 @@ export const initiateCheckout = async (req: Request, res: Response) => {
       customer.isGuest = true;
     }
 
-    // Device Fingerprint Velocity Check
+    // ── Order Velocity Anomaly Check ──────────────────────────────────
+    const forwardedFor = req.headers['x-forwarded-for'] as string | undefined;
+    const ip = (forwardedFor ? forwardedFor.split(',')[0]?.trim() : undefined)
+               || req.socket?.remoteAddress || 'unknown';
+
+    if (customer?.phone) {
+      const isBlocked = await velocityService.isBlocked(
+        customer.phone, ip, deviceFingerprint
+      );
+      if (isBlocked) {
+        return res.status(429).json({
+          error: 'Unusual order activity detected. Please try again later or contact support.'
+        });
+      }
+    }
+
+    // ── Device Fingerprint Velocity Check ─────────────────────────────
     if (deviceFingerprint) {
       const fingerprintKey = `fingerprint:checkout:${deviceFingerprint}`;
       const attempts = await redisClient.incr(fingerprintKey);
@@ -86,6 +103,17 @@ export const initiateCheckout = async (req: Request, res: Response) => {
     }
 
     const order = await checkoutService.initiateCheckout(cartId, customer, shippingAddress, paymentMethod);
+
+    // ── Record order velocity AFTER successful placement ──────────────
+    if (customer?.phone) {
+      await velocityService.checkAndRecord({
+        phone:       customer.phone,
+        ip,
+        fingerprint: deviceFingerprint,
+        orderAmount: order?.order?.total,
+      });
+    }
+
     res.status(201).json(order);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
