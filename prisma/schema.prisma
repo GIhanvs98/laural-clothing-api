@@ -630,3 +630,17 @@ model Setting {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  userId      String?
+  action      String   // CREATE, UPDATE, DELETE, LOGIN, etc.
+  entity      String   // Product, Order, User, Role, etc.
+  entityId    String?  // ID of the modified record
+  oldData     Json?
+  newData     Json?
+  ipAddress   String?
+  userAgent   String?
+  
+  createdAt   DateTime @default(now())
+}
