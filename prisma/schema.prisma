@@ -214,23 +214,78 @@ model StockTransfer {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  name      String?
-  role      Role     @default(STAFF)
-  branchId  String?
-  branch    Branch?  @relation("BranchStaff", fields: [branchId], references: [id])
-  managedBranch Branch? @relation("BranchManager")
-  posSessions PosSession[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String         @id @default(uuid())
+  email         String         @unique
+  password      String
+  name          String?
+  birthday      DateTime?
+  phone         String?
+  status        String         @default("ACTIVE") // ACTIVE, SUSPENDED, PENDING
+  
+  branchId      String?
+  branch        Branch?        @relation("BranchStaff", fields: [branchId], references: [id])
+  managedBranch Branch?        @relation("BranchManager")
+  posSessions   PosSession[]
+  userRoles     UserRole[]
+  refreshTokens RefreshToken[]
+  
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 }
 
-enum Role {
-  SUPER_ADMIN
-  MANAGER
-  STAFF
+model Role {
+  id          String           @id @default(uuid())
+  name        String           @unique
+  description String?
+  isSystem    Boolean          @default(false)
+  status      String           @default("Active") // Active, Inactive
+  
+  permissions RolePermission[]
+  userRoles   UserRole[]
+  
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model Permission {
+  id          String           @id @default(uuid())
+  code        String           @unique // e.g., "orders:view", "products:create"
+  module      String           // e.g., "Orders & Fulfillment", "Catalog & Products"
+  action      String           // "View", "Create", "Edit", "Delete"
+  description String?
+  
+  roles       RolePermission[]
+  
+  createdAt   DateTime         @default(now())
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@id([roleId, permissionId])
+}
+
+model UserRole {
+  userId    String
+  roleId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([userId, roleId])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 }
 
 enum CollectionType {
