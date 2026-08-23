@@ -26,7 +26,8 @@ export const calculateCheckout = async (req: Request, res: Response) => {
 
 export const initiateCheckout = async (req: Request, res: Response) => {
   try {
-    const { cartId, customer, shippingAddress, paymentMethod } = req.body;
+    const { cartId, customer, shippingAddress, paymentMethod, deviceFingerprint } = req.body;
+    const { redisClient } = require('../config/redis');
     
     if (!cartId) {
       return res.status(400).json({ error: 'cartId is required' });
@@ -46,6 +47,21 @@ export const initiateCheckout = async (req: Request, res: Response) => {
       customer.isGuest = true;
     }
 
+    // Device Fingerprint Velocity Check
+    if (deviceFingerprint) {
+      const fingerprintKey = `fingerprint:checkout:${deviceFingerprint}`;
+      const attempts = await redisClient.incr(fingerprintKey);
+      
+      if (attempts === 1) {
+        await redisClient.expire(fingerprintKey, 900); // 15 minutes window
+      }
+      
+      if (attempts > 5) {
+        console.warn(`[Bot Detected] Checkout spam from fingerprint: ${deviceFingerprint}`);
+        return res.status(429).json({ error: 'Too many checkout attempts from this device. Please try again later.' });
+      }
+    }
+
     // If guest checkout, enforce phone verification
     if (customer.isGuest) {
       const { verificationToken } = req.body;
@@ -53,7 +69,6 @@ export const initiateCheckout = async (req: Request, res: Response) => {
         return res.status(403).json({ error: 'Phone number verification is required for guest checkout' });
       }
       
-      const { redisClient } = require('../config/redis');
       const tokenKey = `verified_phone:${customer.phone}`;
       const storedToken = await redisClient.get(tokenKey);
       
