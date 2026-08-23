@@ -2,6 +2,9 @@ import { Request, Response, NextFunction } from "express";
 import { AuthService } from "../services/auth.service";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { validatePasswordStrength } from "../utils/password.util";
+import { trackFailedLogin } from "../middlewares/loginAttempt.middleware";
+import { redisClient } from "../config/redis";
+import { logger } from "../utils/logger";
 
 const setTokenCookies = (res: Response, accessToken: string, refreshToken: string) => {
   const isProd = process.env.NODE_ENV === "production";
@@ -64,6 +67,9 @@ export class AuthController {
   }
 
   static async login(req: AuthRequest, res: Response, next: NextFunction) {
+    const forwarded = req.headers['x-forwarded-for'] as string | undefined;
+    const ip = (forwarded ? forwarded.split(',')[0]?.trim() : undefined) ||
+               req.socket?.remoteAddress || 'unknown';
     try {
       const { email, password } = req.body;
 
@@ -77,6 +83,12 @@ export class AuthController {
 
       const result = await AuthService.loginUser({ email, password });
 
+      // Clear failure counters on successful login
+      await redisClient.del(`login:failures:${ip}`);
+      await redisClient.del(`login:locked:${ip}`);
+      await redisClient.del(`login:alerted:${ip}`);
+      logger.info('Successful login', { email, ip });
+
       setTokenCookies(res, result.accessToken, result.refreshToken);
 
       res.status(200).json({
@@ -85,6 +97,9 @@ export class AuthController {
         data: { user: result.user },
       });
     } catch (error) {
+      // Track failure before propagating
+      const { email } = req.body;
+      await trackFailedLogin(ip, email || 'unknown');
       next(error);
     }
   }
