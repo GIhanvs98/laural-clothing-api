@@ -47,3 +47,19 @@ export const deleteMediaFile = async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+export const viewMediaFile = async (req: Request, res: Response) => {
+  try {
+    const { key } = req.query;
+    if (!key || typeof key !== 'string') {
+      return res.status(400).json({ error: "Media key is required" });
+    }
+
+    const signedUrl = await mediaService.getPresignedReadUrl(key);
+    // Redirect the client transparently to the signed S3 URL
+    res.redirect(302, signedUrl);
+  } catch (error: any) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to generate media URL" });
+  }
+};

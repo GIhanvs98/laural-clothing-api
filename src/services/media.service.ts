@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { MediaFile } from "@prisma/client";
 import prisma from '../config/prisma';
@@ -46,9 +46,24 @@ export const mediaService = {
     // URL expires in 5 minutes
     const url = await getSignedUrl(s3Client, command, { expiresIn: 300 });
     
-    const publicUrl = `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'ap-southeast-1'}.amazonaws.com/${key}`;
+    // Use an internal proxy route instead of exposing the bucket URL
+    const baseUrl = process.env.API_BASE_URL || "http://localhost:5000";
+    const publicUrl = `${baseUrl}/api/v1/media/view?key=${encodeURIComponent(key)}`;
 
     return { url, key, publicUrl };
+  },
+
+  /**
+   * Generate a temporary Read-Only Presigned URL for viewing assets
+   */
+  async getPresignedReadUrl(key: string): Promise<string> {
+    const command = new GetObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: key,
+    });
+
+    // Valid for 5 minutes
+    return getSignedUrl(s3Client, command, { expiresIn: 300 });
   },
 
   /**
