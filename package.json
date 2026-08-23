@@ -18,6 +18,7 @@
     "@aws-sdk/s3-request-presigner": "^3.1111.0",
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
+    "bcryptjs": "^3.0.3",
     "cloudinary": "^2.10.0",
     "cors": "^2.8.6",
     "csv-parser": "^3.2.1",
@@ -25,14 +26,17 @@
     "express": "^5.2.1",
     "helmet": "^8.0.0",
     "ioredis": "^6.0.0",
+    "jsonwebtoken": "^9.0.3",
     "mime-types": "^3.0.2",
     "mysql2": "^3.23.3",
     "pg": "^8.23.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/mime-types": "^3.0.1",
     "@types/node": "^26.2.0",
     "@types/pg": "^8.21.0",
@@ -41,6 +45,6 @@
     "prisma": "^7.9.1",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
-    "typescript": "^7.0.2"
+    "typescript": "^5.9.3"
   }
 }
