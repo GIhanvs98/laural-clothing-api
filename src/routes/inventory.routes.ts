@@ -18,26 +18,27 @@ import {
   releaseStock
 } from '../controllers/inventory.controller';
 import { authenticateJWT, requirePermission } from '../middlewares/auth.middleware';
+import { auditLog } from '../middlewares/audit.middleware';
 
 const router = Router();
 
 router.get('/branches', getBranches);
-router.post('/branches', authenticateJWT, requirePermission("branches:create"), createBranch);
-router.put('/branches/:id', authenticateJWT, requirePermission("branches:edit"), updateBranch);
-router.delete('/branches/:id', authenticateJWT, requirePermission("branches:delete"), deleteBranch);
+router.post('/branches', authenticateJWT, requirePermission("branches:create"), auditLog('Branch', 'CREATE'), createBranch);
+router.put('/branches/:id', authenticateJWT, requirePermission("branches:edit"), auditLog('Branch', 'UPDATE'), updateBranch);
+router.delete('/branches/:id', authenticateJWT, requirePermission("branches:delete"), auditLog('Branch', 'DELETE'), deleteBranch);
 
 router.get('/', authenticateJWT, requirePermission("inventory:view_stock"), getInventory);
 router.get('/stats', authenticateJWT, requirePermission("inventory:view_stock"), getStats);
 router.get('/transactions', authenticateJWT, requirePermission("inventory:view_stock"), getTransactions);
-router.post('/adjust', authenticateJWT, requirePermission("inventory:adjust_stock"), adjustStock);
+router.post('/adjust', authenticateJWT, requirePermission("inventory:adjust_stock"), auditLog('Inventory', 'UPDATE'), adjustStock);
 router.post('/reserve', reserveStock);
 router.post('/release', releaseStock);
 router.get('/transfers', authenticateJWT, requirePermission("inventory:view_stock"), getTransfers);
-router.post('/transfers', authenticateJWT, requirePermission("inventory:stock_transfers"), createTransfer);
-router.put('/transfers/:id/status', authenticateJWT, requirePermission("inventory:stock_transfers"), updateTransferStatus);
+router.post('/transfers', authenticateJWT, requirePermission("inventory:stock_transfers"), auditLog('Transfer', 'CREATE'), createTransfer);
+router.put('/transfers/:id/status', authenticateJWT, requirePermission("inventory:stock_transfers"), auditLog('Transfer', 'UPDATE'), updateTransferStatus);
 
 // Fardar Shipping integration
-router.post('/shipping/create', authenticateJWT, requirePermission("shipping:dispatch_fardar"), createShipment);
+router.post('/shipping/create', authenticateJWT, requirePermission("shipping:dispatch_fardar"), auditLog('Shipment', 'CREATE'), createShipment);
 router.get('/shipping/:trackingNumber', authenticateJWT, requirePermission("shipping:view_queue"), trackShipment);
 router.post('/shipping/webhook', fardarWebhook);
 
