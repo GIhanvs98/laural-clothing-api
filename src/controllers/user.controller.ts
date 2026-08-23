@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { RoleService } from "../services/role.service";
 import { AuthRequest } from "../middlewares/auth.middleware";
+import { validatePasswordStrength } from "../utils/password.util";
 
 export class UserController {
   static async getAllUsers(req: Request, res: Response, next: NextFunction) {
@@ -17,8 +18,14 @@ export class UserController {
   static async createUser(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const { email, password, name, phone, branchId, status, roleIds } = req.body;
-      if (!email) {
-        res.status(400).json({ success: false, message: "Email is required." });
+      if (!email || !password) {
+        res.status(400).json({ success: false, message: "Email and password are required." });
+        return;
+      }
+
+      const passwordValidation = validatePasswordStrength(password);
+      if (!passwordValidation.isValid) {
+        res.status(400).json({ success: false, message: passwordValidation.message });
         return;
       }
 
@@ -42,6 +49,14 @@ export class UserController {
     try {
       const id = String(req.params.id);
       const { name, email, phone, branchId, status, roleIds, password } = req.body;
+
+      if (password) {
+        const passwordValidation = validatePasswordStrength(password);
+        if (!passwordValidation.isValid) {
+          res.status(400).json({ success: false, message: passwordValidation.message });
+          return;
+        }
+      }
 
       const users = await RoleService.updateUser(id, {
         name,

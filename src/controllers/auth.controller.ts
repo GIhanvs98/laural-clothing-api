@@ -1,6 +1,7 @@
 import { Response, NextFunction } from "express";
 import { AuthService } from "../services/auth.service";
 import { AuthRequest } from "../middlewares/auth.middleware";
+import { validatePasswordStrength } from "../utils/password.util";
 
 const setTokenCookies = (res: Response, accessToken: string, refreshToken: string) => {
   const isProd = process.env.NODE_ENV === "production";
@@ -33,10 +34,11 @@ export class AuthController {
         return;
       }
 
-      if (password.length < 6) {
+      const passwordValidation = validatePasswordStrength(password);
+      if (!passwordValidation.isValid) {
         res.status(400).json({
           success: false,
-          message: "Password must be at least 6 characters.",
+          message: passwordValidation.message,
         });
         return;
       }
