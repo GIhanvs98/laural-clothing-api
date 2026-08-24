@@ -1,6 +1,7 @@
 import prisma from '../config/prisma';
 import { redisClient } from '../config/redis';
 import crypto from 'crypto';
+import { cartSelect, cartItemSelect } from '../dto/cart.dto';
 
 const GUEST_CART_TTL = 7 * 24 * 60 * 60; // 7 days
 
@@ -8,7 +9,7 @@ const GUEST_CART_TTL = 7 * 24 * 60 * 60; // 7 days
 async function getVariantWithProduct(variantId: string) {
   return prisma.productVariant.findUnique({
     where: { id: variantId },
-    include: { product: { include: { variants: true } } },
+    include: { product: { select: { id: true, name: true, slug: true, variants: { select: { id: true, name: true, sku: true, price: true, salePrice: true, stockStatus: true, quantity: true, color: true, size: true, featuredImage: true, gallery: true } } } } },
   });
 }
 
@@ -21,13 +22,13 @@ export const cartService = {
       // Authenticated Cart -> DB
       let cart = await prisma.cart.findFirst({
         where: { customerId, status: 'ACTIVE' },
-        include: { items: { include: { variant: { include: { product: { include: { variants: true } } } } } } },
+        select: cartSelect,
       });
 
       if (!cart) {
         cart = await prisma.cart.create({
           data: { customerId, status: 'ACTIVE' },
-          include: { items: { include: { variant: { include: { product: { include: { variants: true } } } } } } },
+          select: cartSelect,
         });
       }
       return cart;
@@ -76,13 +77,13 @@ export const cartService = {
         return prisma.cartItem.update({
           where: { id: existingItem.id },
           data: { quantity: existingItem.quantity + quantity },
-          include: { variant: { include: { product: true } } },
+          select: cartItemSelect,
         });
       }
 
       return prisma.cartItem.create({
         data: { cartId, variantId, quantity },
-        include: { variant: { include: { product: true } } },
+        select: cartItemSelect,
       });
     }
 
@@ -125,7 +126,7 @@ export const cartService = {
       return prisma.cartItem.update({
         where: { id: itemId },
         data: { quantity },
-        include: { variant: { include: { product: true } } },
+        select: cartItemSelect,
       });
     }
 

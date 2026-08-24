@@ -1,5 +1,6 @@
 import prisma from '../config/prisma';
 import { signImageUrl } from './product.service';
+import { productWithVariantsSelect } from '../dto/product.dto';
 
 // Resolves the final image URL for a collection.
 // Priority: manually set imageUrl > first product image in the collection.
@@ -118,7 +119,7 @@ export const collectionService = {
     if (collection.type === 'MANUAL') {
       const collectionProducts = await prisma.collectionProduct.findMany({
         where: { collectionId: collection.id },
-        include: { product: { include: { variants: true, category: true } } },
+        select: { product: { select: productWithVariantsSelect } },
         skip,
         take,
         orderBy: { addedAt: 'desc' },
@@ -156,7 +157,7 @@ export const collectionService = {
 
       const products = await prisma.product.findMany({
         where: whereClause,
-        include: { variants: true, category: true },
+        select: productWithVariantsSelect,
         skip,
         take,
         orderBy: { createdAt: 'desc' },

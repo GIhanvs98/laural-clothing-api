@@ -1,33 +1,12 @@
 import { Prisma } from '@prisma/client';
 import prisma from '../config/prisma';
 import { signImageUrl } from './product.service';
+import { categoryWithPreviewSelect } from '../dto/category.dto';
 
 export const categoryService = {
   async getCategories() {
     const categories = await prisma.category.findMany({
-      include: {
-        _count: {
-          select: { products: true, legacyProducts: true },
-        },
-        products: {
-          where: {
-            variants: {
-              some: {
-                featuredImage: { not: null }
-              }
-            }
-          },
-          take: 1,
-          include: {
-            variants: {
-              where: {
-                featuredImage: { not: null }
-              },
-              take: 1
-            }
-          }
-        }
-      },
+      select: categoryWithPreviewSelect,
       orderBy: { createdAt: 'desc' },
     });
 
@@ -45,29 +24,7 @@ export const categoryService = {
   async getCategoryById(id: string) {
     const category = await prisma.category.findUnique({
       where: { id },
-      include: {
-        _count: {
-          select: { products: true, legacyProducts: true },
-        },
-        products: {
-          where: {
-            variants: {
-              some: {
-                featuredImage: { not: null }
-              }
-            }
-          },
-          take: 1,
-          include: {
-            variants: {
-              where: {
-                featuredImage: { not: null }
-              },
-              take: 1
-            }
-          }
-        }
-      },
+      select: categoryWithPreviewSelect,
     });
 
     if (!category) return null;
