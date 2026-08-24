@@ -3,6 +3,7 @@ import cors from "cors";
 import helmet from "helmet";
 import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
+import compression from "compression";
 import { logger } from "./utils/logger";
 import { errorHandler, AppError } from "./middlewares/errorHandler";
 import { globalApiLimiter } from "./middlewares/rateLimiter.middleware";
@@ -77,6 +78,7 @@ app.use(helmet({
   referrerPolicy: { policy: "strict-origin-when-cross-origin" },
   xssFilter: true, // Adds X-XSS-Protection
 }));
+app.use(compression());
 app.use(cors({
   origin: process.env.FRONTEND_URL || "http://localhost:3000",
   credentials: true
