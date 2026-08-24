@@ -16,38 +16,9 @@ const s3Client = new S3Client({
 });
 
 export async function signImageUrl(url: string | null): Promise<string | null> {
-  if (!url) return null;
-  
-  const endpointUrl = process.env.AWS_S3_ENDPOINT || '';
-  let endpointHostname = '';
-  try {
-    if (endpointUrl) {
-      endpointHostname = new URL(endpointUrl).hostname;
-    }
-  } catch (e) {
-    // Ignore invalid URL
-  }
-  
-  if (!url.includes(endpointHostname) && !url.includes(endpointUrl)) return url;
-  
-  try {
-    const bucket = process.env.AWS_S3_BUCKET_NAME || '';
-    const urlObj = new URL(url);
-    let key = urlObj.pathname.substring(1); // remove leading slash
-    if (key.startsWith(bucket + '/')) {
-      key = key.substring(bucket.length + 1);
-    }
-    
-    const command = new GetObjectCommand({
-      Bucket: bucket,
-      Key: key,
-    });
-    
-    return await getSignedUrl(s3Client, command, { expiresIn: 3600 });
-  } catch (error) {
-    console.error('Failed to sign URL:', error);
-    return url;
-  }
+  // Option 1: Return clean, unsigned URLs
+  // The bucket must be configured for Public Read Access in Tigris/Railway
+  return url;
 }
 
 async function processProductImageUrls(product: any) {
