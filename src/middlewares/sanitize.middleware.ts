@@ -31,10 +31,14 @@ export const sanitizeMiddleware = (req: Request, res: Response, next: NextFuncti
     req.body = sanitizePayload(req.body);
   }
   if (req.query) {
-    req.query = sanitizePayload(req.query);
+    const sanitized = sanitizePayload(req.query);
+    for (const key in req.query) delete req.query[key];
+    Object.assign(req.query, sanitized);
   }
   if (req.params) {
-    req.params = sanitizePayload(req.params);
+    const sanitized = sanitizePayload(req.params);
+    for (const key in req.params) delete req.params[key];
+    Object.assign(req.params, sanitized);
   }
   
   next();
