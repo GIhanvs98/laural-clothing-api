@@ -1,6 +1,7 @@
 import prisma from '../config/prisma';
 import { Prisma } from '@prisma/client';
 import { productWithVariantsSelect } from '../dto/product.dto';
+import { withCache, invalidateCache } from '../utils/cache.util';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
@@ -69,69 +70,78 @@ export class ProductService {
     category?: string;
   }) {
     const { skip = 0, take = 50, search, category } = params;
+    const cacheKey = `products:all:skip:${skip}:take:${take}:search:${search || 'none'}:category:${category || 'none'}`;
 
-    const where: Prisma.ProductWhereInput = {
-      ...(search
-        ? {
-            OR: [
-              { name: { contains: search, mode: 'insensitive' } },
-              { description: { contains: search, mode: 'insensitive' } },
-              { variants: { some: { sku: { contains: search, mode: 'insensitive' } } } },
-            ],
-          }
-        : {}),
-      ...(category
-        ? {
-            category: { slug: category }
-          }
-        : {}),
-    };
+    return withCache(cacheKey, 900, async () => {
+      const where: Prisma.ProductWhereInput = {
+        ...(search
+          ? {
+              OR: [
+                { name: { contains: search, mode: 'insensitive' } },
+                { description: { contains: search, mode: 'insensitive' } },
+                { variants: { some: { sku: { contains: search, mode: 'insensitive' } } } },
+              ],
+            }
+          : {}),
+        ...(category
+          ? {
+              category: { slug: category }
+            }
+          : {}),
+      };
 
-    const [products, total] = await Promise.all([
-      prisma.product.findMany({
-        where,
-        skip,
-        take,
-        select: productWithVariantsSelect,
-        orderBy: { createdAt: 'desc' },
-      }),
-      prisma.product.count({ where }),
-    ]);
+      const [products, total] = await Promise.all([
+        prisma.product.findMany({
+          where,
+          skip,
+          take,
+          select: productWithVariantsSelect,
+          orderBy: { createdAt: 'desc' },
+        }),
+        prisma.product.count({ where }),
+      ]);
 
-    const processedProducts = await Promise.all(products.map((p: any) => processProductImageUrls(p)));
+      const processedProducts = await Promise.all(products.map((p: any) => processProductImageUrls(p)));
 
-    return {
-      data: processedProducts,
-      meta: {
-        total,
-        skip,
-        take,
-      },
-    };
+      return {
+        data: processedProducts,
+        meta: {
+          total,
+          skip,
+          take,
+        },
+      };
+    });
   }
 
   async getProductById(id: string) {
-    const product = await prisma.product.findUnique({
-      where: { id },
-      select: productWithVariantsSelect,
+    return withCache(`product:id:${id}`, 900, async () => {
+      const product = await prisma.product.findUnique({
+        where: { id },
+        select: productWithVariantsSelect,
+      });
+      return product ? processProductImageUrls(product) : null;
     });
-    return product ? processProductImageUrls(product) : null;
   }
 
   async getProductBySlug(slug: string) {
-    const product = await prisma.product.findUnique({
-      where: { slug },
-      select: productWithVariantsSelect,
+    return withCache(`product:slug:${slug}`, 900, async () => {
+      const product = await prisma.product.findUnique({
+        where: { slug },
+        select: productWithVariantsSelect,
+      });
+      return product ? processProductImageUrls(product) : null;
     });
-    return product ? processProductImageUrls(product) : null;
   }
 
   async getProductBySku(sku: string) {
-    const variant = await prisma.productVariant.findUnique({
-      where: { sku },
-      select: { product: { select: productWithVariantsSelect } },
+    return withCache(`product:sku:${sku}`, 900, async () => {
+      const variant = await prisma.productVariant.findUnique({
+        where: { sku },
+        select: { product: { select: productWithVariantsSelect } },
+      });
+      return variant && variant.product ? processProductImageUrls(variant.product) : null;
     });
-    return variant && variant.product ? processProductImageUrls(variant.product) : null;
   }
 
   async createProduct(data: Prisma.ProductCreateInput) {
@@ -139,22 +149,28 @@ export class ProductService {
       data.slug = data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + Date.now();
     }
     
-    return prisma.product.create({
+    const result = await prisma.product.create({
       data,
     });
+    await invalidateCache('product*');
+    return result;
   }
 
   async updateProduct(id: string, data: Prisma.ProductUpdateInput) {
-    return prisma.product.update({
+    const result = await prisma.product.update({
       where: { id },
       data,
     });
+    await invalidateCache('product*');
+    return result;
   }
 
   async deleteProduct(id: string) {
-    return prisma.product.delete({
+    const result = await prisma.product.delete({
       where: { id },
     });
+    await invalidateCache('product*');
+    return result;
   }
 }
 

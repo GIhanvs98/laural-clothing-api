@@ -1,6 +1,9 @@
 import prisma from '../config/prisma';
 import { signImageUrl } from './product.service';
 import { productWithVariantsSelect } from '../dto/product.dto';
+import { withCache, invalidateCache } from '../utils/cache.util';
+
+const CACHE_TTL = 3600; // 1 hour
 
 // Resolves the final image URL for a collection.
 // Priority: manually set imageUrl > first product image in the collection.
@@ -62,54 +65,66 @@ type CollectionUpdateData = Partial<CollectionCreateData>;
 
 export const collectionService = {
   async getCollections() {
-    const collections = await prisma.collection.findMany({
-      include: { _count: { select: { products: true } } },
-      orderBy: { createdAt: 'desc' },
-    });
+    return withCache('collections:all', CACHE_TTL, async () => {
+      const collections = await prisma.collection.findMany({
+        include: { _count: { select: { products: true } } },
+        orderBy: { createdAt: 'desc' },
+      });
 
-    return Promise.all(
-      collections.map(async (col: any) => {
-        const imageUrl = await resolveCollectionImageUrl(col);
-        return { ...col, imageUrl };
-      })
-    );
+      return Promise.all(
+        collections.map(async (col: any) => {
+          const imageUrl = await resolveCollectionImageUrl(col);
+          return { ...col, imageUrl };
+        })
+      );
+    });
   },
 
   async getCollectionById(id: string) {
-    const col = await prisma.collection.findUnique({
-      where: { id },
-      include: { _count: { select: { products: true } } },
+    return withCache(`collection:id:${id}`, CACHE_TTL, async () => {
+      const col = await prisma.collection.findUnique({
+        where: { id },
+        include: { _count: { select: { products: true } } },
+      });
+      if (!col) return null;
+      const imageUrl = await resolveCollectionImageUrl(col);
+      return { ...col, imageUrl };
     });
-    if (!col) return null;
-    const imageUrl = await resolveCollectionImageUrl(col);
-    return { ...col, imageUrl };
   },
 
   async getCollectionBySlug(slug: string) {
-    const col = await prisma.collection.findUnique({
-      where: { slug },
-      include: { _count: { select: { products: true } } },
+    return withCache(`collection:slug:${slug}`, CACHE_TTL, async () => {
+      const col = await prisma.collection.findUnique({
+        where: { slug },
+        include: { _count: { select: { products: true } } },
+      });
+      if (!col) return null;
+      const imageUrl = await resolveCollectionImageUrl(col);
+      return { ...col, imageUrl };
     });
-    if (!col) return null;
-    const imageUrl = await resolveCollectionImageUrl(col);
-    return { ...col, imageUrl };
   },
 
   async createCollection(data: CollectionCreateData) {
     if (!data.slug) {
       data.slug = data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + Date.now();
     }
-    return prisma.collection.create({ data: data as any });
+    const result = await prisma.collection.create({ data: data as any });
+    await invalidateCache('collection*');
+    return result;
   },
 
   async updateCollection(id: string, data: CollectionUpdateData) {
-    return prisma.collection.update({ where: { id }, data: data as any });
+    const result = await prisma.collection.update({ where: { id }, data: data as any });
+    await invalidateCache('collection*');
+    return result;
   },
 
   // SAFE DELETE: removes collection and join records, NEVER touches products
   async deleteCollection(id: string) {
     await prisma.collectionProduct.deleteMany({ where: { collectionId: id } });
-    return prisma.collection.delete({ where: { id } });
+    const result = await prisma.collection.delete({ where: { id } });
+    await invalidateCache('collection*');
+    return result;
   },
 
   async getCollectionProducts(slug: string, skip?: number, take?: number) {
