@@ -4,8 +4,21 @@ import { productService } from '../services/product.service';
 export class ProductController {
   async getAllProducts(req: Request, res: Response) {
     try {
-      const skip = req.query.skip ? parseInt(req.query.skip as string, 10) : undefined;
-      const take = req.query.take ? parseInt(req.query.take as string, 10) : undefined;
+      let skip = req.query.skip ? parseInt(req.query.skip as string, 10) : undefined;
+      let take = req.query.take ? parseInt(req.query.take as string, 10) : undefined;
+
+      if (skip !== undefined && isNaN(skip)) {
+        res.status(400).json({ error: 'Invalid skip parameter' });
+        return;
+      }
+
+      if (take !== undefined) {
+        if (isNaN(take)) {
+          res.status(400).json({ error: 'Invalid take parameter' });
+          return;
+        }
+        take = Math.min(100, Math.max(1, take));
+      }
       const search = req.query.search as string | undefined;
       const category = req.query.category as string | undefined;
       
