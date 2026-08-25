@@ -79,8 +79,22 @@ app.use(helmet({
   xssFilter: true, // Adds X-XSS-Protection
 }));
 app.use(compression());
+const allowedOrigins = process.env.FRONTEND_URL 
+  ? process.env.FRONTEND_URL.split(',').map(u => u.trim())
+  : [
+      "http://localhost:3000", 
+      "https://laural-clothing-frontend-production.up.railway.app"
+    ];
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || "http://localhost:3000",
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true
 }));
 
