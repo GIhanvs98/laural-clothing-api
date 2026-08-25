@@ -62,6 +62,7 @@ model Product {
 
   @@index([categoryId])
   @@index([createdAt])
+  @@index([categoryId, createdAt])
 }
 
 model ProductVariant {
@@ -92,6 +93,9 @@ model ProductVariant {
   updatedAt DateTime @updatedAt
 
   @@index([productId])
+  @@index([color])
+  @@index([size])
+  @@index([price])
 }
 
 model Branch {
