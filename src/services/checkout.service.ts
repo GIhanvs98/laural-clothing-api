@@ -119,72 +119,79 @@ export const checkoutService = {
       throw new Error('Checkout blocked due to high fraud risk.');
     }
 
-    // 3. Create Order
+    // 3. Create Order & Deduct Inventory in Transaction
     const orderNumber = `LC-${Date.now().toString().slice(-6)}`;
     
-    const order = await prisma.order.create({
-      data: {
-        orderNumber,
-        customerId: customer.id,
-        status: 'PENDING',
-        paymentMethod: paymentMethod || 'COD',
-        paymentStatus: 'UNPAID',
-        subtotal: totals.subtotal,
-        shippingFee: totals.shippingFee,
-        tax: totals.tax,
-        total: totals.total,
-        shippingAddress: shippingAddress,
-        fraudScore: fraudEvaluation.fraudScore,
-        riskLevel: fraudEvaluation.riskLevel,
-        fraudSignals: fraudEvaluation.fraudSignals,
-        items: {
-          create: cart.items.map((item: any) => ({
-            variantId: item.variantId,
-            quantity: item.quantity,
-            priceAtPurchase: item.variant.salePrice ?? item.variant.price,
-          })),
+    const order = await prisma.$transaction(async (tx) => {
+      const createdOrder = await tx.order.create({
+        data: {
+          orderNumber,
+          customerId: customer.id,
+          status: 'PENDING',
+          paymentMethod: paymentMethod || 'COD',
+          paymentStatus: 'UNPAID',
+          subtotal: totals.subtotal,
+          shippingFee: totals.shippingFee,
+          tax: totals.tax,
+          total: totals.total,
+          shippingAddress: shippingAddress,
+          fraudScore: fraudEvaluation.fraudScore,
+          riskLevel: fraudEvaluation.riskLevel,
+          fraudSignals: fraudEvaluation.fraudSignals,
+          items: {
+            create: cart.items.map((item: any) => ({
+              variantId: item.variantId,
+              quantity: item.quantity,
+              priceAtPurchase: item.variant.salePrice ?? item.variant.price,
+            })),
+          },
         },
-      },
-      include: {
-        items: true,
-      },
+        include: {
+          items: true,
+        },
+      });
+
+      // 3.5 Deduct Inventory
+      let onlineBranch = await tx.branch.findFirst({
+        where: { OR: [{ name: 'Online' }, { code: 'ONLINE' }] }
+      });
+      
+      // Fallback if no online branch exists
+      if (!onlineBranch) {
+        onlineBranch = await tx.branch.findFirst({ where: { isActive: true } });
+      }
+
+      if (onlineBranch) {
+        for (const item of cart.items) {
+          await inventoryService.adjustStock({
+            variantId: item.variantId,
+            branchId: onlineBranch.id,
+            type: 'DEDUCT',
+            quantity: item.quantity,
+            reason: 'Online Order Checkout',
+            reference: createdOrder.id
+          }, tx); // Pass the transaction client
+        }
+      }
+
+      // 4. Clean up Cart (DB)
+      if (!isGuest) {
+        await tx.cart.update({
+          where: { id: cartId },
+          data: { status: 'CONVERTED' },
+        });
+      }
+
+      return createdOrder;
     });
 
     if (fraudEvaluation.riskLevel === 'HIGH') {
       await alertService.sendFraudAlert(order.orderNumber, fraudEvaluation.fraudScore, fraudEvaluation.riskLevel, fraudEvaluation.fraudSignals, cartId);
     }
 
-    // 3.5 Deduct Inventory
-    let onlineBranch = await prisma.branch.findFirst({
-      where: { OR: [{ name: 'Online' }, { code: 'ONLINE' }] }
-    });
-    
-    // Fallback if no online branch exists
-    if (!onlineBranch) {
-      onlineBranch = await prisma.branch.findFirst({ where: { isActive: true } });
-    }
-
-    if (onlineBranch) {
-      for (const item of cart.items) {
-        await inventoryService.adjustStock({
-          variantId: item.variantId,
-          branchId: onlineBranch.id,
-          type: 'DEDUCT',
-          quantity: item.quantity,
-          reason: 'Online Order Checkout',
-          reference: order.id
-        });
-      }
-    }
-
-    // 4. Clean up Cart
+    // 4. Clean up Cart (Redis for guests)
     if (isGuest) {
       await redisClient.del(`cart:${cartId}`);
-    } else {
-      await prisma.cart.update({
-        where: { id: cartId },
-        data: { status: 'CONVERTED' },
-      });
     }
 
     // 5. Initiate Payment
