@@ -49,6 +49,8 @@ model Product {
   description String?
   excerpt     String?
 
+  style       String?
+
   categoryId String?
   category   Category? @relation(fields: [categoryId], references: [id])
 

@@ -101,7 +101,7 @@ export class ProductService {
             : {},
           styles && styles.length > 0
             ? {
-                category: { name: { in: styles, mode: 'insensitive' } },
+                style: { in: styles, mode: 'insensitive' },
               }
             : {},
           sizes && sizes.length > 0
