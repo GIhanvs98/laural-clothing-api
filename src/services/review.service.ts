@@ -64,6 +64,29 @@ export const reviewService = {
   },
 
   /**
+   * Storefront fetches latest approved reviews for landing page
+   */
+  async getPublicReviews(): Promise<Review[]> {
+    return prisma.review.findMany({
+      where: {
+        status: ReviewStatus.APPROVED
+      },
+      include: {
+        customer: {
+          select: {
+            firstName: true,
+            lastName: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      },
+      take: 10
+    });
+  },
+
+  /**
    * Customer fetches pending products to review
    */
   async getPendingReviews(customerId: string): Promise<any[]> {

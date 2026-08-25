@@ -23,6 +23,16 @@ export const getReviewsForProduct = async (req: Request, res: Response) => {
   }
 };
 
+export const getPublicReviews = async (req: Request, res: Response) => {
+  try {
+    const reviews = await reviewService.getPublicReviews();
+    res.json(reviews);
+  } catch (error: any) {
+    console.error(error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
 export const getPendingReviews = async (req: Request, res: Response) => {
   try {
     const { customerId } = req.params;

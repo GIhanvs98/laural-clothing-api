@@ -8,8 +8,17 @@ export class ProductController {
       const take = req.query.take ? parseInt(req.query.take as string, 10) : undefined;
       const search = req.query.search as string | undefined;
       const category = req.query.category as string | undefined;
+      
+      const sizes = req.query.sizes ? (req.query.sizes as string).split(',') : undefined;
+      const colors = req.query.colors ? (req.query.colors as string).split(',') : undefined;
+      const minPrice = req.query.minPrice ? parseFloat(req.query.minPrice as string) : undefined;
+      const maxPrice = req.query.maxPrice ? parseFloat(req.query.maxPrice as string) : undefined;
+      const styles = req.query.styles ? (req.query.styles as string).split(',') : undefined;
+      const sort = req.query.sort as string | undefined;
 
-      const result = await productService.getAllProducts({ skip, take, search, category });
+      const result = await productService.getAllProducts({ 
+        skip, take, search, category, sizes, colors, minPrice, maxPrice, styles, sort 
+      });
       res.status(200).json(result);
     } catch (error: any) {
       res.status(500).json({ error: error.message || 'Internal Server Error' });
@@ -59,6 +68,15 @@ export class ProductController {
       }
       
       res.status(200).json(product);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Internal Server Error' });
+    }
+  }
+
+  async getFilterMetadata(req: Request, res: Response) {
+    try {
+      const metadata = await productService.getFilterMetadata();
+      res.status(200).json(metadata);
     } catch (error: any) {
       res.status(500).json({ error: error.message || 'Internal Server Error' });
     }

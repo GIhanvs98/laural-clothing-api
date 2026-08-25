@@ -6,7 +6,8 @@ import {
   getPendingReviews,
   getAllReviews,
   updateReviewStatus,
-  deleteReview
+  deleteReview,
+  getPublicReviews
 } from '../controllers/review.controller';
 import { authenticateJWT, requirePermission } from '../middlewares/auth.middleware';
 import { checkHoneypot } from '../middlewares/honeypot.middleware';
@@ -16,6 +17,7 @@ const router = Router();
 
 router.post('/', authenticateJWT, checkHoneypot, verifyTurnstile, createReview);
 router.get('/product/:productId', getReviewsForProduct);
+router.get('/public', getPublicReviews);
 router.get('/customer/:customerId', authenticateJWT, getCustomerReviews);
 router.get('/pending/:customerId', authenticateJWT, getPendingReviews);
 router.get('/', authenticateJWT, requirePermission("reviews:view"), getAllReviews);
