@@ -175,6 +175,16 @@ export const inventoryService = {
     const { variantId, branchId, type, quantity, reason, reference } = data;
     const delta = type === 'RECEIVE' ? Math.abs(quantity) : -Math.abs(quantity);
 
+    if (type === 'DEDUCT') {
+      const currentInv = await prisma.inventoryItem.findUnique({
+        where: { variantId_branchId: { variantId, branchId } }
+      });
+      
+      if (!currentInv || currentInv.quantity < Math.abs(delta)) {
+        throw new Error(`Insufficient Stock for variant ${variantId} in branch ${branchId}`);
+      }
+    }
+
     const inv = await prisma.inventoryItem.upsert({
       where: { variantId_branchId: { variantId, branchId } },
       create: { variantId, branchId, quantity: Math.max(0, delta) },
