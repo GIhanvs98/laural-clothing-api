@@ -373,5 +373,44 @@ export const orderService = {
     }
 
     return order;
+  },
+
+  async cancelAbandonedOrders() {
+    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+    
+    const abandonedOrders = await prisma.order.findMany({
+      where: {
+        status: 'PENDING',
+        paymentStatus: 'UNPAID',
+        createdAt: { lt: thirtyMinutesAgo }
+      },
+      include: { items: true }
+    });
+
+    if (abandonedOrders.length === 0) return 0;
+
+    for (const order of abandonedOrders) {
+      await prisma.$transaction(async (tx) => {
+        await tx.order.update({
+          where: { id: order.id },
+          data: { status: 'CANCELLED' }
+        });
+
+        const branchId = order.branchId || (await tx.branch.findFirst({ where: { OR: [{ name: 'Online' }, { code: 'ONLINE' }] } }))?.id;
+        if (branchId) {
+          for (const item of order.items) {
+            await inventoryService.adjustStock({
+              variantId: item.variantId,
+              branchId,
+              type: 'RECEIVE',
+              quantity: item.quantity,
+              reason: 'Abandoned Order Restock',
+              reference: order.id
+            }, tx);
+          }
+        }
+      });
+    }
+    return abandonedOrders.length;
   }
 };

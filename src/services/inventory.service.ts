@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import prisma from '../config/prisma';
 import { signImageUrl } from './product.service';
+import { invalidateCache } from '../utils/cache.util';
 
 export const inventoryService = {
 
@@ -209,6 +210,8 @@ export const inventoryService = {
       },
     });
 
+    await invalidateCache('product*');
+
     return { inventoryItem: inv, transaction };
   },
 
@@ -232,6 +235,8 @@ export const inventoryService = {
       data: { variantId, branchId, type: 'RESERVE', quantityChange: 0, reason: 'Order Reservation', reference: orderId }
     });
 
+    await invalidateCache('product*');
+
     return updated;
   },
 
@@ -253,6 +258,8 @@ export const inventoryService = {
     await prisma.inventoryTransaction.create({
       data: { variantId, branchId, type: 'RELEASE', quantityChange: 0, reason: 'Reservation Released', reference: orderId }
     });
+
+    await invalidateCache('product*');
 
     return updated;
   },
