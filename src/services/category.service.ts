@@ -7,9 +7,16 @@ import { withCache, invalidateCache } from '../utils/cache.util';
 const CACHE_TTL = 3600; // 1 hour
 
 export const categoryService = {
-  async getCategories() {
-    return withCache('categories:all', CACHE_TTL, async () => {
+  async getCategories(search?: string) {
+    const cacheKey = search ? `categories:search:${search}` : 'categories:all';
+    return withCache(cacheKey, CACHE_TTL, async () => {
       const categories = await prisma.category.findMany({
+        where: search ? {
+          OR: [
+            { name: { contains: search, mode: 'insensitive' } },
+            { description: { contains: search, mode: 'insensitive' } },
+          ],
+        } : undefined,
         select: categoryWithPreviewSelect,
         orderBy: { createdAt: 'desc' },
       });

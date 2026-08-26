@@ -51,12 +51,13 @@ export const createQuickDispatch = async (req: Request, res: Response) => {
 
 export const getOrders = async (req: Request, res: Response) => {
   try {
-    const { status, paymentGateway, branchId, customerId, page, limit } = req.query;
+    const { search, status, paymentGateway, branchId, customerId, page, limit } = req.query;
     
     const skip = page ? (parseInt(page as string) - 1) * parseInt(limit as string || '20') : 0;
     const take = limit ? parseInt(limit as string) : 20;
 
     const result = await orderService.getOrders({
+      search,
       status,
       paymentGateway,
       branchId,

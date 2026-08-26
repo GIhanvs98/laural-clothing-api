@@ -560,6 +560,16 @@ export class RoleService {
         { phone: { contains: search, mode: "insensitive" } },
       ];
     }
+    
+    if (roleFilter) {
+      where.userRoles = {
+        some: {
+          role: {
+            name: roleFilter
+          }
+        }
+      };
+    }
 
     const users = await prisma.user.findMany({
       where,
