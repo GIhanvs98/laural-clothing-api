@@ -89,9 +89,19 @@ export const cartService = {
     // Guest Cart -> Redis
     const redisKey = `cart:${cartId}`; // cartId is sessionId for guests
     const cartStr = await redisClient.get(redisKey);
-    if (!cartStr) throw new Error('Guest cart not found');
+    let cart: any;
+    if (!cartStr) {
+      cart = {
+        id: cartId,
+        sessionId: cartId,
+        status: 'ACTIVE',
+        items: [],
+        createdAt: new Date().toISOString(),
+      };
+    } else {
+      cart = JSON.parse(cartStr);
+    }
     
-    const cart = JSON.parse(cartStr);
     const existingIndex = cart.items.findIndex((i: any) => i.variantId === variantId);
     
     let updatedItem;
@@ -120,7 +130,7 @@ export const cartService = {
     if (!isGuest) {
       // Authenticated Cart -> DB
       if (quantity <= 0) {
-        return prisma.cartItem.delete({ where: { id: itemId } });
+        return prisma.cartItem.deleteMany({ where: { id: itemId, cartId } });
       }
       return prisma.cartItem.update({
         where: { id: itemId },
@@ -132,7 +142,9 @@ export const cartService = {
     // Guest Cart -> Redis
     const redisKey = `cart:${cartId}`;
     const cartStr = await redisClient.get(redisKey);
-    if (!cartStr) throw new Error('Guest cart not found');
+    if (!cartStr) {
+      return true;
+    }
 
     const cart = JSON.parse(cartStr);
     if (quantity <= 0) {
@@ -151,6 +163,32 @@ export const cartService = {
    */
   async removeItem(cartId: string, itemId: string, isGuest: boolean = false) {
     return this.updateItemQuantity(cartId, itemId, 0, isGuest);
+  },
+
+  /**
+   * Clears all items from the cart.
+   */
+  async clearCart(cartId: string, isGuest: boolean = false) {
+    if (!isGuest) {
+      await prisma.cartItem.deleteMany({
+        where: { cartId },
+      });
+      return prisma.cart.findUnique({
+        where: { id: cartId },
+        include: { items: { include: { variant: { include: { product: { include: { variants: true } } } } } } },
+      });
+    }
+
+    const redisKey = `cart:${cartId}`;
+    const newCart = {
+      id: cartId,
+      sessionId: cartId,
+      status: 'ACTIVE',
+      items: [],
+      createdAt: new Date().toISOString(),
+    };
+    await redisClient.setex(redisKey, GUEST_CART_TTL, JSON.stringify(newCart));
+    return newCart;
   },
 
   /**
