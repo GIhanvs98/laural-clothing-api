@@ -1,11 +1,12 @@
 import { Request, Response } from 'express';
 import { cartService } from '../services/cart.service';
+import { AuthRequest } from '../middlewares/auth.middleware';
 
 // Helper to extract identifier
 const getIdentifier = (req: Request) => {
   const sessionId = req.headers['x-session-id'] as string;
-  // TODO: extract customerId from authenticated request (req.user?.id) when auth is integrated
-  const customerId = req.headers['x-customer-id'] as string | undefined;
+  const user = (req as AuthRequest).user;
+  const customerId = user?.userId || (req.headers['x-customer-id'] as string | undefined);
   return { sessionId, customerId };
 };
 
@@ -81,6 +82,25 @@ export const removeCartItem = async (req: Request, res: Response) => {
     await cartService.removeItem(cart.id, id, isGuest);
     
     // Fetch updated cart
+    const updatedCart = await cartService.getOrCreateCart(sessionId, customerId);
+    res.json(updatedCart);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const clearCart = async (req: Request, res: Response) => {
+  try {
+    const { sessionId, customerId } = getIdentifier(req);
+    if (!sessionId && !customerId) {
+      return res.status(400).json({ error: 'Missing x-session-id or authentication' });
+    }
+
+    const isGuest = !customerId;
+    const cart = await cartService.getOrCreateCart(sessionId, customerId);
+
+    await cartService.clearCart(cart.id, isGuest);
+    
     const updatedCart = await cartService.getOrCreateCart(sessionId, customerId);
     res.json(updatedCart);
   } catch (error: any) {
