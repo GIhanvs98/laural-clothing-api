@@ -38,7 +38,7 @@ export const customerService = {
         orderBy,
         include: {
           orders: {
-            select: { totalAmount: true }
+            select: { total: true }
           },
           _count: {
             select: { orders: true }
@@ -49,7 +49,7 @@ export const customerService = {
     ]);
 
     const formattedCustomers = customers.map(c => {
-      const spent = c.orders.reduce((sum, order) => sum + Number(order.totalAmount || 0), 0);
+      const spent = c.orders.reduce((sum: number, order: any) => sum + Number(order.total || 0), 0);
       return {
         id: c.id,
         name: (c.firstName || c.lastName) ? `${c.firstName || ''} ${c.lastName || ''}`.trim() : 'N/A',
