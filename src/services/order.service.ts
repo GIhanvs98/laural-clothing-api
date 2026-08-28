@@ -354,6 +354,90 @@ export const orderService = {
     return order;
   },
 
+  async refundPartialOrder(id: string, itemsToReturn: { variantId: string; qty: number }[], refundMethod?: string) {
+    let order = await prisma.order.findUnique({
+      where: { id },
+      include: { items: true }
+    });
+
+    if (!order) throw new Error("Order not found");
+    if (order.status === 'CANCELLED') throw new Error("Order already cancelled");
+
+    let totalRefundAmount = 0;
+    
+    // Process each returned item
+    for (const returnReq of itemsToReturn) {
+      // Allow fallback if frontend passes ID instead of variantId
+      const orderItem = order.items.find(i => i.variantId === returnReq.variantId || i.id === returnReq.variantId);
+      if (!orderItem) throw new Error(`Item ${returnReq.variantId} not found in order`);
+      
+      const availableToReturn = orderItem.quantity - orderItem.returnedQty;
+      if (returnReq.qty > availableToReturn) {
+        throw new Error(`Cannot return ${returnReq.qty} of ${returnReq.variantId}. Only ${availableToReturn} available.`);
+      }
+
+      totalRefundAmount += orderItem.priceAtPurchase * returnReq.qty;
+
+      // Update returnedQty
+      await prisma.orderItem.update({
+        where: { id: orderItem.id },
+        data: { returnedQty: { increment: returnReq.qty } }
+      });
+    }
+
+    // Deduct from order total
+    order = await prisma.order.update({
+      where: { id },
+      data: {
+        total: { decrement: totalRefundAmount },
+        subtotal: { decrement: totalRefundAmount },
+        status: (order.total - totalRefundAmount <= 0) ? 'CANCELLED' : order.status
+      },
+      include: { items: true }
+    });
+
+    // Restore stock
+    const branchId = order.branchId || (await prisma.branch.findFirst({ where: { OR: [{ name: 'Online' }, { code: 'ONLINE' }] } }))?.id;
+    if (branchId) {
+      for (const returnReq of itemsToReturn) {
+        const orderItem = order.items.find(i => i.variantId === returnReq.variantId || i.id === returnReq.variantId);
+        if (orderItem) {
+          await inventoryService.adjustStock({
+            variantId: orderItem.variantId,
+            branchId,
+            type: 'RECEIVE',
+            quantity: returnReq.qty,
+            reason: 'Partial Order Refund Restock',
+            reference: order.id
+          });
+        }
+      }
+    }
+    
+    // If it's a POS order with a session, create a negative POS refund order for till tracking
+    const appliedRefundMethod = refundMethod || order.paymentMethod;
+    if (order.posSessionId && branchId) {
+      await prisma.order.create({
+        data: {
+          orderNumber: `REF-${order.orderNumber}-${Math.floor(Math.random()*1000)}`,
+          type: 'POS',
+          status: 'DELIVERED',
+          paymentStatus: 'REFUNDED',
+          paymentMethod: appliedRefundMethod,
+          subtotal: -totalRefundAmount,
+          total: -totalRefundAmount,
+          tax: 0,
+          shippingFee: 0,
+          branchId,
+          posSessionId: order.posSessionId,
+          customerId: order.customerId
+        }
+      });
+    }
+
+    return { order, refundAmount: totalRefundAmount };
+  },
+
   async trackOrder(orderNumber: string, phone: string) {
     const order = await prisma.order.findUnique({
       where: { orderNumber },
