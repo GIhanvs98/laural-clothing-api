@@ -126,7 +126,12 @@ export const posService = {
 
   async getCurrentSession(terminalId: string) {
     return await prisma.posSession.findFirst({
-      where: { terminalId, status: 'OPEN' }
+      where: { terminalId, status: 'OPEN' },
+      include: {
+        branch: true,
+        terminal: true,
+        user: true
+      }
     });
   },
 
