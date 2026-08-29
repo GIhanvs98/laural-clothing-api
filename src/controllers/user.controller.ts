@@ -8,7 +8,8 @@ export class UserController {
     try {
       const search = (req.query.search as string) || undefined;
       const role = (req.query.role as string) || undefined;
-      const users = await RoleService.getAllUsers(search, role);
+      const branchId = (req.query.branchId as string) || undefined;
+      const users = await RoleService.getAllUsers(search, role, branchId);
       res.status(200).json({ success: true, data: users });
     } catch (error) {
       next(error);

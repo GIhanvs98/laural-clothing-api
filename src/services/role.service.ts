@@ -550,7 +550,7 @@ export class RoleService {
   /**
    * User Management: Get all users with assigned roles & branches
    */
-  static async getAllUsers(search?: string, roleFilter?: string) {
+  static async getAllUsers(search?: string, roleFilter?: string, branchId?: string) {
     const where: any = {};
 
     if (search) {
@@ -559,6 +559,10 @@ export class RoleService {
         { email: { contains: search, mode: "insensitive" } },
         { phone: { contains: search, mode: "insensitive" } },
       ];
+    }
+    
+    if (branchId) {
+      where.branchId = branchId;
     }
     
     if (roleFilter) {
