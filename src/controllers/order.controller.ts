@@ -139,3 +139,37 @@ export const trackOrder = async (req: Request, res: Response) => {
     res.status(404).json({ error: error.message || 'Order not found' });
   }
 };
+
+export const getOrderConfirmation = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+    const { simulated } = req.query;
+    if (!orderNumber) {
+      return res.status(400).json({ error: 'Order number is required' });
+    }
+
+    let order = await orderService.getOrderByOrderNumber(orderNumber as string);
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    // In dev simulation mode, if order was simulated onepay, mark as PAID if UNPAID
+    if (simulated === 'true' && order.paymentStatus === 'UNPAID') {
+      const prisma = require('../config/prisma').default;
+      await prisma.order.update({
+        where: { id: order.id },
+        data: {
+          paymentStatus: 'PAID',
+          status: 'PROCESSING'
+        }
+      });
+      order = await orderService.getOrderByOrderNumber(orderNumber as string);
+    }
+
+    res.json(order);
+  } catch (error: any) {
+    console.error('[Order Confirmation Error]', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+};
+

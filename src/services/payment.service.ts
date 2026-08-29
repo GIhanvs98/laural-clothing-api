@@ -1,11 +1,17 @@
 import prisma from '../config/prisma';
+import { onepayService } from './gateways/onepay.service';
 
 export const paymentService = {
   async initiatePayment(orderId: string, method: string) {
-    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { customer: true }
+    });
     if (!order) throw new Error('Order not found');
 
-    if (method.toUpperCase() === 'COD') {
+    const normalizedMethod = method.toUpperCase();
+
+    if (normalizedMethod === 'COD') {
       return {
         success: true,
         method: 'COD',
@@ -14,28 +20,37 @@ export const paymentService = {
       };
     }
 
+    if (normalizedMethod === 'ONEPAY' || normalizedMethod === 'CARD' || normalizedMethod === 'BANK_CARD') {
+      return onepayService.createPaymentSession(order, order.customer);
+    }
+
     // Generate a mock redirect URL for other gateways
     const redirectUrl = `https://mock-gateway.com/pay/${method.toLowerCase()}?order=${order.orderNumber}&amount=${order.total}`;
 
     return {
       success: true,
-      method: method.toUpperCase(),
+      method: normalizedMethod,
       redirectUrl,
       message: 'Please complete your payment'
     };
   },
 
   async handleWebhook(provider: string, payload: any) {
-    // In a real scenario, we would verify the webhook signature here
-    // Verify idempotency using payload.transactionId
+    const normalizedProvider = provider.toLowerCase();
 
-    const orderNumber = payload.orderNumber;
+    if (normalizedProvider === 'onepay') {
+      return onepayService.processWebhook(payload);
+    }
+
+    const orderNumber = payload.orderNumber || payload.reference;
     if (!orderNumber) throw new Error('Invalid webhook payload: missing orderNumber');
 
     const order = await prisma.order.findUnique({ where: { orderNumber } });
     if (!order) throw new Error('Order not found from webhook');
 
-    if (payload.status === 'SUCCESS') {
+    const isSuccess = payload.status === 'SUCCESS' || payload.status === 'PAID';
+
+    if (isSuccess) {
       await prisma.order.update({
         where: { id: order.id },
         data: {
@@ -43,7 +58,6 @@ export const paymentService = {
           status: 'PROCESSING'
         }
       });
-      // Additional logic here: notify user, etc.
     } else if (payload.status === 'FAILED') {
       await prisma.order.update({
         where: { id: order.id },

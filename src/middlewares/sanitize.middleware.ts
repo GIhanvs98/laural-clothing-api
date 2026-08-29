@@ -2,9 +2,7 @@ import { Request, Response, NextFunction } from "express";
 
 /**
  * Recursively sanitizes an object by removing any keys that start with a dollar sign ($).
- * This protects against NoSQL injection patterns (e.g. $where, $gt, $regex) which,
- * although not native to Prisma/Postgres in the same way as MongoDB, is a defense-in-depth
- * measure against any raw queries or secondary document stores that might process the payload.
+ * This protects against NoSQL injection patterns (e.g. $where, $gt, $regex).
  */
 function sanitizePayload(obj: any): any {
   if (Array.isArray(obj)) {
@@ -15,7 +13,6 @@ function sanitizePayload(obj: any): any {
     const sanitizedObj: Record<string, any> = {};
     for (const key of Object.keys(obj)) {
       if (key.startsWith('$')) {
-        // Strip out the suspicious key completely
         continue;
       }
       sanitizedObj[key] = sanitizePayload(obj[key]);
@@ -26,16 +23,33 @@ function sanitizePayload(obj: any): any {
   return obj;
 }
 
+function sanitizeInPlace(obj: any): void {
+  if (obj !== null && typeof obj === 'object' && !Array.isArray(obj)) {
+    for (const key of Object.keys(obj)) {
+      if (key.startsWith('$')) {
+        delete obj[key];
+      } else if (obj[key] !== null && typeof obj[key] === 'object') {
+        if (Array.isArray(obj[key])) {
+          obj[key] = sanitizePayload(obj[key]);
+        } else {
+          sanitizeInPlace(obj[key]);
+        }
+      }
+    }
+  }
+}
+
 export const sanitizeMiddleware = (req: Request, res: Response, next: NextFunction) => {
-  if (req.body) {
-    req.body = sanitizePayload(req.body);
+  if (req.body && typeof req.body === 'object') {
+    sanitizeInPlace(req.body);
   }
-  if (req.query) {
-    req.query = sanitizePayload(req.query);
+  if (req.query && typeof req.query === 'object') {
+    sanitizeInPlace(req.query);
   }
-  if (req.params) {
-    req.params = sanitizePayload(req.params);
+  if (req.params && typeof req.params === 'object') {
+    sanitizeInPlace(req.params);
   }
   
   next();
 };
+

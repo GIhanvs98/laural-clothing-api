@@ -256,6 +256,37 @@ export const orderService = {
     return order;
   },
 
+  async getOrderByOrderNumber(orderNumber: string) {
+    const order = await prisma.order.findUnique({
+      where: { orderNumber },
+      include: {
+        customer: {
+          select: {
+            id: true,
+            phone: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            loyaltyPoints: true,
+          }
+        },
+        branch: true,
+        items: {
+          include: {
+            variant: {
+              include: {
+                product: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    return order;
+  },
+
+
   async updateOrderStatus(id: string, status: string) {
     // Validate valid status progression or general status updates
     const validStatuses = ['PENDING', 'PROCESSING', 'DISPATCHED', 'DELIVERED', 'CANCELLED'];
