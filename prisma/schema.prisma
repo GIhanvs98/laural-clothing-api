@@ -636,6 +636,9 @@ model Review {
 
   isVerifiedPurchase Boolean @default(false)
 
+  adminReply  String?  @db.Text
+  spamFlagged Boolean  @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

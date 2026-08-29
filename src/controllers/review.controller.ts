@@ -81,3 +81,30 @@ export const deleteReview = async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+export const adminReplyToReview = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { reply } = req.body;
+    if (!reply || typeof reply !== 'string') {
+      return res.status(400).json({ error: 'A non-empty reply text is required.' });
+    }
+    const review = await reviewService.adminReplyToReview(id as string, reply);
+    res.json(review);
+  } catch (error: any) {
+    console.error(error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const flagReviewAsSpam = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { flagged } = req.body;
+    const review = await reviewService.flagReviewAsSpam(id as string, Boolean(flagged));
+    res.json(review);
+  } catch (error: any) {
+    console.error(error);
+    res.status(500).json({ error: error.message });
+  }
+};

@@ -6,7 +6,9 @@ import {
   getPendingReviews,
   getAllReviews,
   updateReviewStatus,
-  deleteReview
+  deleteReview,
+  adminReplyToReview,
+  flagReviewAsSpam
 } from '../controllers/review.controller';
 import { authenticateJWT, requirePermission } from '../middlewares/auth.middleware';
 import { checkHoneypot } from '../middlewares/honeypot.middleware';
@@ -21,5 +23,7 @@ router.get('/pending/:customerId', authenticateJWT, getPendingReviews);
 router.get('/', authenticateJWT, requirePermission("reviews:view"), getAllReviews);
 router.patch('/:id/status', authenticateJWT, requirePermission("reviews:approve"), updateReviewStatus);
 router.delete('/:id', authenticateJWT, requirePermission("reviews:reject"), deleteReview);
+router.patch('/:id/reply', authenticateJWT, requirePermission("reviews:approve"), adminReplyToReview);
+router.patch('/:id/spam', authenticateJWT, requirePermission("reviews:approve"), flagReviewAsSpam);
 
 export default router;

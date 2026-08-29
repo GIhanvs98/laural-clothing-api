@@ -37,6 +37,8 @@ import roleRoutes from "./routes/role.routes";
 import userRoutes from "./routes/user.routes";
 import settingRoutes from "./routes/setting.routes";
 import otpRoutes from "./routes/otp.routes";
+import notificationRoutes from "./routes/notification.routes";
+import auditRoutes from "./routes/audit.routes";
 import { RoleService } from "./services/role.service";
 import { SettingService } from "./services/setting.service";
 
@@ -143,6 +145,8 @@ app.use(`${API_PREFIX}/wishlist`, wishlistRoutes);
 app.use(`${API_PREFIX}/addresses`, addressRoutes);
 app.use(`${API_PREFIX}/reports`, reportRoutes);
 app.use(`${API_PREFIX}/otp`, otpRoutes);
+app.use(`${API_PREFIX}/notifications`, notificationRoutes);
+app.use(`${API_PREFIX}/audit`, auditRoutes);
 
 // Health Check
 app.get("/health", (req: Request, res: Response) => {

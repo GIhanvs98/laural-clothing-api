@@ -164,5 +164,28 @@ export const reviewService = {
     await prisma.review.delete({
       where: { id }
     });
+  },
+
+  /**
+   * Admin posts a reply to a review
+   */
+  async adminReplyToReview(id: string, reply: string): Promise<Review> {
+    return prisma.review.update({
+      where: { id },
+      data: { adminReply: reply }
+    });
+  },
+
+  /**
+   * Admin flags a review as spam (or unflags)
+   */
+  async flagReviewAsSpam(id: string, flagged: boolean): Promise<Review> {
+    return prisma.review.update({
+      where: { id },
+      data: {
+        spamFlagged: flagged,
+        status: flagged ? ReviewStatus.REJECTED : ReviewStatus.PENDING
+      }
+    });
   }
 };

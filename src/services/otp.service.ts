@@ -1,12 +1,13 @@
 import { redisClient } from '../config/redis';
 import { logger } from '../utils/logger';
+import { NotificationService } from './notification.service';
 
 const OTP_EXPIRY_SECONDS = 300; // 5 minutes
 
 export const otpService = {
   /**
    * Generates a 6-digit OTP, stores it in Redis against the phone number,
-   * and mocks sending it.
+   * and sends it via the Send.lk SMS gateway (falls back to mock if API key missing).
    */
   async sendOtp(phone: string): Promise<void> {
     // Generate a 6-digit OTP
@@ -16,9 +17,17 @@ export const otpService = {
     const redisKey = `otp:${phone}`;
     await redisClient.set(redisKey, otp, 'EX', OTP_EXPIRY_SECONDS);
     
-    // Mock sending OTP
-    logger.info(`[MOCK SMS] Sending OTP ${otp} to phone number ${phone}`);
-    console.log(`\n\n=== MOCK SMS ===\nTo: ${phone}\nOTP: ${otp}\n================\n\n`);
+    const message = `Your Laural verification code is: ${otp}. Valid for 5 minutes.`;
+    
+    try {
+      // Use the real SMS gateway if SEND_LK_API_KEY is configured
+      await NotificationService.sendBulkSms([phone], message);
+      logger.info(`[OTP] Sent OTP to ${phone} via Send.lk`);
+    } catch (err) {
+      // Fallback: log to console so development still works
+      logger.warn(`[OTP] Failed to send SMS via gateway, falling back to console mock`, err);
+      console.log(`\n\n=== MOCK SMS ===\nTo: ${phone}\nOTP: ${otp}\n================\n\n`);
+    }
   },
 
   /**
