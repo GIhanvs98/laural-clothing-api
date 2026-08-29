@@ -259,6 +259,7 @@ model User {
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   auditLogs AuditLog[]
+  pushSubscriptions PushSubscription[]
 }
 
 model Role {
@@ -714,5 +715,15 @@ model AuditLog {
   ipAddress String?
   userAgent String?
 
+  createdAt DateTime @default(now())
+}
+
+model PushSubscription {
+  id        String   @id @default(uuid())
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
   createdAt DateTime @default(now())
 }
