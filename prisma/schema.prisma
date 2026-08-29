@@ -552,6 +552,10 @@ model HomepageSection {
   description String?
   visible     Boolean  @default(true)
   order       Int      @default(0)
+  
+  type        String   @default("STATIC")
+  config      Json?
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -562,6 +566,12 @@ model StaticPage {
   slug       String   @unique
   content    String   @db.Text
   lastEdited DateTime @default(now())
+
+  metaTitle       String?
+  metaDescription String?
+  metaKeywords    String?
+  ogImage         String?
+
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 }
