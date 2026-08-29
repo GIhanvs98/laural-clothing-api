@@ -2,7 +2,6 @@ import cron from 'node-cron';
 import { auditDigestService } from '../services/auditDigest.service';
 import { dbBackupService } from './dbBackup';
 import { logger } from '../utils/logger';
-import { orderService } from '../services/order.service';
 
 const PENTEST_REMINDER_MESSAGE = [
   '🔴 *Quarterly Penetration Test Reminder*',
@@ -63,18 +62,5 @@ export function registerScheduledJobs() {
     await dbBackupService.runEncryptedBackup();
   }, { timezone: 'UTC' });
 
-  // Abandoned Order Cron Job — every 15 minutes
-  cron.schedule('*/15 * * * *', async () => {
-    logger.info('[Scheduler] Checking for abandoned orders...');
-    try {
-      const cancelledCount = await orderService.cancelAbandonedOrders();
-      if (cancelledCount > 0) {
-        logger.info(`[Scheduler] Cancelled ${cancelledCount} abandoned orders and restocked inventory.`);
-      }
-    } catch (err) {
-      logger.error('[Scheduler] Failed to cancel abandoned orders:', err);
-    }
-  });
-
-  logger.info('[Scheduler] Registered jobs: [weekly-audit-digest @ Monday 08:00], [quarterly-pentest-reminder x4], [daily-db-backup @ 02:00 UTC], [abandoned-orders @ every 15m]');
+  logger.info('[Scheduler] Registered jobs: [weekly-audit-digest @ Monday 08:00], [quarterly-pentest-reminder x4], [daily-db-backup @ 02:00 UTC]');
 }

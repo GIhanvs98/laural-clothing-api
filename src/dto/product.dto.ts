@@ -23,7 +23,6 @@ export const productBasicSelect = {
   slug: true,
   description: true,
   excerpt: true,
-  status: true,
   categoryId: true,
   createdAt: true,
   updatedAt: true,

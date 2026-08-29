@@ -64,29 +64,6 @@ export const reviewService = {
   },
 
   /**
-   * Storefront fetches latest approved reviews for landing page
-   */
-  async getPublicReviews(): Promise<Review[]> {
-    return prisma.review.findMany({
-      where: {
-        status: ReviewStatus.APPROVED
-      },
-      include: {
-        customer: {
-          select: {
-            firstName: true,
-            lastName: true
-          }
-        }
-      },
-      orderBy: {
-        createdAt: 'desc'
-      },
-      take: 10
-    });
-  },
-
-  /**
    * Customer fetches pending products to review
    */
   async getPendingReviews(customerId: string): Promise<any[]> {
@@ -154,83 +131,20 @@ export const reviewService = {
   /**
    * Admin fetches all reviews (with filters)
    */
-  async getAllReviews(
-    status?: ReviewStatus,
-    page: number = 1,
-    limit: number = 20,
-    search?: string
-  ): Promise<{ data: Review[]; total: number; page: number; totalPages: number }> {
-    const skip = (page - 1) * limit;
-
-    const where: any = {};
-    if (status) {
-      where.status = status;
-    }
-    
-    if (search) {
-      where.OR = [
-        { title: { contains: search, mode: 'insensitive' } },
-        { comment: { contains: search, mode: 'insensitive' } },
-        { product: { name: { contains: search, mode: 'insensitive' } } },
-        { customer: { firstName: { contains: search, mode: 'insensitive' } } },
-        { customer: { lastName: { contains: search, mode: 'insensitive' } } }
-      ];
-    }
-
-    const [data, total] = await Promise.all([
-      prisma.review.findMany({
-        where,
-        include: {
-          product: { select: { name: true } },
-          customer: { select: { firstName: true, lastName: true, email: true } }
+  async getAllReviews(status?: ReviewStatus): Promise<Review[]> {
+    const where = status ? { status } : {};
+    return prisma.review.findMany({
+      where,
+      include: {
+        product: {
+          select: { name: true }
         },
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit
-      }),
-      prisma.review.count({ where })
-    ]);
-
-    return {
-      data,
-      total,
-      page,
-      totalPages: Math.ceil(total / limit)
-    };
-  },
-
-  /**
-   * Admin fetches global review stats for KPI cards
-   */
-  async getReviewStats(): Promise<{ pending: number; approved: number; rejected: number; spam: number; averageRating: number }> {
-    const counts = await prisma.review.groupBy({
-      by: ['status'],
-      _count: true
+        customer: {
+          select: { firstName: true, lastName: true, email: true }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
     });
-
-    const ratingAgg = await prisma.review.aggregate({
-      _avg: { rating: true }
-    });
-
-    let pending = 0;
-    let approved = 0;
-    let rejected = 0;
-    let spam = 0;
-
-    for (const c of counts) {
-      if (c.status === 'PENDING') pending = c._count;
-      else if (c.status === 'APPROVED') approved = c._count;
-      else if (c.status === 'REJECTED') rejected = c._count;
-      else if (c.status === 'SPAM') spam = c._count;
-    }
-
-    return {
-      pending,
-      approved,
-      rejected,
-      spam,
-      averageRating: ratingAgg._avg.rating ? Number(ratingAgg._avg.rating.toFixed(1)) : 0
-    };
   },
 
   /**
@@ -240,19 +154,6 @@ export const reviewService = {
     return prisma.review.update({
       where: { id },
       data: { status }
-    });
-  },
-
-  /**
-   * Admin adds a reply to a review
-   */
-  async addAdminReply(id: string, reply: string): Promise<Review> {
-    return prisma.review.update({
-      where: { id },
-      data: { 
-        adminReply: reply,
-        adminReplyAt: new Date()
-      }
     });
   },
 

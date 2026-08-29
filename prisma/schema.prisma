@@ -11,7 +11,6 @@ model Category {
   name           String
   slug           String          @unique
   description    String?
-  imageUrl       String?
   products       Product[]
   legacyProducts LegacyProduct[]
   createdAt      DateTime        @default(now())
@@ -49,9 +48,6 @@ model Product {
   slug        String  @unique
   description String?
   excerpt     String?
-  status      String  @default("ACTIVE") // ACTIVE, DRAFT, ARCHIVED
-
-  style String?
 
   categoryId String?
   category   Category? @relation(fields: [categoryId], references: [id])
@@ -66,7 +62,6 @@ model Product {
 
   @@index([categoryId])
   @@index([createdAt])
-  @@index([categoryId, createdAt])
 }
 
 model ProductVariant {
@@ -97,9 +92,6 @@ model ProductVariant {
   updatedAt DateTime @updatedAt
 
   @@index([productId])
-  @@index([color])
-  @@index([size])
-  @@index([price])
 }
 
 model Branch {
@@ -256,10 +248,8 @@ model User {
   userRoles     UserRole[]
   refreshTokens RefreshToken[]
 
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  auditLogs AuditLog[]
-  pushSubscriptions PushSubscription[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Role {
@@ -475,7 +465,6 @@ model OrderItem {
   variant   ProductVariant @relation(fields: [variantId], references: [id])
 
   quantity        Int
-  returnedQty     Int   @default(0)
   priceAtPurchase Float // To lock in the price at checkout
 
   returnItems ReturnItem[]
@@ -551,17 +540,13 @@ model Banner {
 }
 
 model HomepageSection {
-  id          String  @id @default(uuid())
+  id          String   @id @default(uuid())
   name        String
   description String?
-  visible     Boolean @default(true)
-  order       Int     @default(0)
-
-  type   String @default("STATIC")
-  config Json?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  visible     Boolean  @default(true)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model StaticPage {
@@ -570,14 +555,8 @@ model StaticPage {
   slug       String   @unique
   content    String   @db.Text
   lastEdited DateTime @default(now())
-
-  metaTitle       String?
-  metaDescription String?
-  metaKeywords    String?
-  ogImage         String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 model Coupon {
@@ -638,7 +617,6 @@ enum ReviewStatus {
   PENDING
   APPROVED
   REJECTED
-  SPAM
 }
 
 model Review {
@@ -655,9 +633,6 @@ model Review {
   status  ReviewStatus @default(PENDING)
 
   isVerifiedPurchase Boolean @default(false)
-
-  adminReply   String?   @db.Text
-  adminReplyAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -706,7 +681,6 @@ model Setting {
 model AuditLog {
   id        String  @id @default(uuid())
   userId    String?
-  user      User?   @relation(fields: [userId], references: [id])
   action    String // CREATE, UPDATE, DELETE, LOGIN, etc.
   entity    String // Product, Order, User, Role, etc.
   entityId  String? // ID of the modified record
@@ -715,15 +689,5 @@ model AuditLog {
   ipAddress String?
   userAgent String?
 
-  createdAt DateTime @default(now())
-}
-
-model PushSubscription {
-  id        String   @id @default(uuid())
-  endpoint  String   @unique
-  p256dh    String
-  auth      String
-  userId    String?
-  user      User?    @relation(fields: [userId], references: [id])
   createdAt DateTime @default(now())
 }

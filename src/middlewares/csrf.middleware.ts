@@ -32,11 +32,10 @@ export const csrfMiddleware = (req: Request, res: Response, next: NextFunction) 
   
   if (!csrfCookie) {
     csrfCookie = crypto.randomBytes(32).toString('hex');
-    const isProd = process.env.NODE_ENV === 'production';
     res.cookie(CSRF_COOKIE_NAME, csrfCookie, {
       httpOnly: true,
-      secure: isProd,
-      sameSite: isProd ? 'none' : 'lax', // Must be none for cross-site Railway subdomains
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict', // Essential for CSRF protection
       maxAge: 24 * 60 * 60 * 1000 // 24 hours
     });
   }

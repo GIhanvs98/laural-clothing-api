@@ -2,18 +2,8 @@ import prisma from '../config/prisma';
 
 export const promotionService = {
   // --- Coupons ---
-  async getCoupons(search?: string, status?: string, type?: string) {
-    const where: any = {};
-    if (status) where.status = status;
-    if (type) where.type = type;
-    if (search) {
-      where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { code: { contains: search, mode: 'insensitive' } }
-      ];
-    }
+  async getCoupons() {
     return prisma.coupon.findMany({
-      where,
       orderBy: { createdAt: 'desc' }
     });
   },
@@ -58,14 +48,8 @@ export const promotionService = {
   },
 
   // --- Flash Sales ---
-  async getFlashSales(search?: string, status?: string) {
-    const where: any = {};
-    if (status) where.status = status;
-    if (search) {
-      where.name = { contains: search, mode: 'insensitive' };
-    }
+  async getFlashSales() {
     return prisma.flashSale.findMany({
-      where,
       include: {
         items: {
           include: {

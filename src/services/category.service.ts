@@ -7,28 +7,21 @@ import { withCache, invalidateCache } from '../utils/cache.util';
 const CACHE_TTL = 3600; // 1 hour
 
 export const categoryService = {
-  async getCategories(search?: string) {
-    const cacheKey = search ? `categories:search:${search}` : 'categories:all';
-    return withCache(cacheKey, CACHE_TTL, async () => {
+  async getCategories() {
+    return withCache('categories:all', CACHE_TTL, async () => {
       const categories = await prisma.category.findMany({
-        where: search ? {
-          OR: [
-            { name: { contains: search, mode: 'insensitive' } },
-            { description: { contains: search, mode: 'insensitive' } },
-          ],
-        } : undefined,
         select: categoryWithPreviewSelect,
         orderBy: { createdAt: 'desc' },
       });
 
       return Promise.all(categories.map(async (category) => {
-        let derivedImageUrl = category.imageUrl;
+        let imageUrl = null;
         const featuredImage = category.products?.[0]?.variants?.[0]?.featuredImage;
-        if (!derivedImageUrl && featuredImage) {
-          derivedImageUrl = await signImageUrl(featuredImage);
+        if (featuredImage) {
+          imageUrl = await signImageUrl(featuredImage);
         }
         const { products, ...rest } = category;
-        return { ...rest, imageUrl: derivedImageUrl };
+        return { ...rest, imageUrl };
       }));
     });
   },
@@ -42,13 +35,13 @@ export const categoryService = {
 
       if (!category) return null;
 
-      let derivedImageUrl = category.imageUrl;
+      let imageUrl = null;
       const featuredImage = category.products?.[0]?.variants?.[0]?.featuredImage;
-      if (!derivedImageUrl && featuredImage) {
-        derivedImageUrl = await signImageUrl(featuredImage);
+      if (featuredImage) {
+        imageUrl = await signImageUrl(featuredImage);
       }
       const { products, ...rest } = category;
-      return { ...rest, imageUrl: derivedImageUrl };
+      return { ...rest, imageUrl };
     });
   },
 

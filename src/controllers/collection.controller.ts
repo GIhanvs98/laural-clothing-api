@@ -3,8 +3,7 @@ import { collectionService } from '../services/collection.service';
 
 export const getCollections = async (req: Request, res: Response) => {
   try {
-    const search = req.query.search as string;
-    const collections = await collectionService.getCollections(search);
+    const collections = await collectionService.getCollections();
     res.json({ data: collections, total: collections.length });
   } catch (error) {
     res.status(500).json({ message: 'Error fetching collections', error });

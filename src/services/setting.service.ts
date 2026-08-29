@@ -34,49 +34,13 @@ export class SettingService {
     return prisma.$transaction(async (tx) => {
       const updatedSettings = [];
       for (const setting of settings) {
-        // Find existing setting to preserve type/group if upserting
-        const existing = await tx.setting.findUnique({ where: { key: setting.key } });
-        
-        const updated = await tx.setting.upsert({
+        const updated = await tx.setting.update({
           where: { key: setting.key },
-          update: { value: setting.value },
-          create: {
-            key: setting.key,
-            value: setting.value,
-            type: existing?.type || "string",
-            group: existing?.group || "general",
-            isPublic: existing?.isPublic ?? false
-          },
+          data: { value: setting.value },
         });
         updatedSettings.push(updated);
       }
       return updatedSettings;
-    });
-  }
-
-  /**
-   * Create a new custom setting
-   */
-  static async createSetting(data: { key: string; value: string; type: string; group: string; isPublic: boolean; description?: string }) {
-    const existing = await prisma.setting.findUnique({ where: { key: data.key } });
-    if (existing) {
-      throw new AppError("Setting with this key already exists", 400);
-    }
-    return prisma.setting.create({
-      data,
-    });
-  }
-
-  /**
-   * Delete a setting
-   */
-  static async deleteSetting(key: string) {
-    const existing = await prisma.setting.findUnique({ where: { key } });
-    if (!existing) {
-      throw new AppError("Setting not found", 404);
-    }
-    return prisma.setting.delete({
-      where: { key },
     });
   }
 
@@ -92,11 +56,6 @@ export class SettingService {
       // Currency & Tax
       { key: "default_currency", value: "LKR", type: "string", group: "currency", isPublic: true },
       { key: "tax_rate", value: "15", type: "number", group: "currency", isPublic: false },
-      // Shipping
-      { key: "base_shipping_cost", value: "350", type: "number", group: "shipping", isPublic: true },
-      // Payment Gateways
-      { key: "enable_cod", value: "true", type: "boolean", group: "payment", isPublic: true },
-      { key: "enable_card_payments", value: "true", type: "boolean", group: "payment", isPublic: true },
       // Notifications
       { key: "email_new_orders", value: "true", type: "boolean", group: "notifications", isPublic: false },
       { key: "email_low_stock", value: "false", type: "boolean", group: "notifications", isPublic: false },

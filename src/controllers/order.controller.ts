@@ -51,13 +51,12 @@ export const createQuickDispatch = async (req: Request, res: Response) => {
 
 export const getOrders = async (req: Request, res: Response) => {
   try {
-    const { search, status, paymentGateway, branchId, customerId, page, limit } = req.query;
+    const { status, paymentGateway, branchId, customerId, page, limit } = req.query;
     
     const skip = page ? (parseInt(page as string) - 1) * parseInt(limit as string || '20') : 0;
     const take = limit ? parseInt(limit as string) : 20;
 
     const result = await orderService.getOrders({
-      search,
       status,
       paymentGateway,
       branchId,
@@ -123,24 +122,6 @@ export const refundOrder = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error(error);
     res.status(400).json({ error: error.message || 'Failed to refund order' });
-  }
-};
-
-export const refundPartialOrder = async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const { itemsToReturn, refundMethod } = req.body;
-    
-    if (!id) return res.status(400).json({ error: 'Order ID is required' });
-    if (!itemsToReturn || !Array.isArray(itemsToReturn) || itemsToReturn.length === 0) {
-      return res.status(400).json({ error: 'itemsToReturn array is required' });
-    }
-
-    const result = await orderService.refundPartialOrder(id as string, itemsToReturn, refundMethod);
-    res.json(result);
-  } catch (error: any) {
-    console.error(error);
-    res.status(400).json({ error: error.message || 'Failed to process partial refund' });
   }
 };
 

@@ -3,10 +3,7 @@ import { promotionService } from '../services/promotion.service';
 
 export const getCoupons = async (req: Request, res: Response) => {
   try {
-    const search = req.query.search as string;
-    const status = req.query.status as string;
-    const type = req.query.type as string;
-    const coupons = await promotionService.getCoupons(search, status, type);
+    const coupons = await promotionService.getCoupons();
     res.json(coupons);
   } catch (error) {
     console.error(error);
@@ -48,9 +45,7 @@ export const deleteCoupon = async (req: Request, res: Response) => {
 
 export const getFlashSales = async (req: Request, res: Response) => {
   try {
-    const search = req.query.search as string;
-    const status = req.query.status as string;
-    const flashSales = await promotionService.getFlashSales(search, status);
+    const flashSales = await promotionService.getFlashSales();
     res.json(flashSales);
   } catch (error) {
     console.error(error);

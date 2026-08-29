@@ -57,36 +57,3 @@ export const getInventoryValuationReport = async (req: Request, res: Response) =
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 };
-
-export const getCustomerReport = async (req: Request, res: Response) => {
-  try {
-    const { startDate, endDate } = getDates(req);
-    const report = await reportService.getCustomerReport(startDate, endDate);
-    res.json(report);
-  } catch (error: any) {
-    console.error('Error fetching customer report:', error);
-    res.status(500).json({ error: error.message || 'Internal server error' });
-  }
-};
-
-export const getPosReport = async (req: Request, res: Response) => {
-  try {
-    const { startDate, endDate } = getDates(req);
-    const report = await reportService.getPosReport(startDate, endDate);
-    res.json(report);
-  } catch (error: any) {
-    console.error('Error fetching pos report:', error);
-    res.status(500).json({ error: error.message || 'Internal server error' });
-  }
-};
-
-export const getPromotionsReport = async (req: Request, res: Response) => {
-  try {
-    const { startDate, endDate } = getDates(req);
-    const report = await reportService.getPromotionsReport(startDate, endDate);
-    res.json(report);
-  } catch (error: any) {
-    console.error('Error fetching promotions report:', error);
-    res.status(500).json({ error: error.message || 'Internal server error' });
-  }
-};

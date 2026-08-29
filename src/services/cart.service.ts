@@ -67,35 +67,22 @@ export const cartService = {
     const variantData = await getVariantWithProduct(variantId);
     if (!variantData) throw new Error('Variant not found');
 
-    // --- Server-Side Stock Validation ---
-    const invStats = await prisma.inventoryItem.aggregate({
-      where: { variantId },
-      _sum: { quantity: true, reservedQty: true }
-    });
-    const availableStock = (invStats._sum.quantity || 0) - (invStats._sum.reservedQty || 0);
-    // ------------------------------------
-
     if (!isGuest) {
       // Authenticated Cart -> DB
       const existingItem = await prisma.cartItem.findUnique({
         where: { cartId_variantId: { cartId, variantId } },
       });
 
-      const targetQuantity = existingItem ? existingItem.quantity + quantity : quantity;
-      if (targetQuantity > availableStock) {
-        throw new Error(`Cannot add ${quantity} items. Only ${Math.max(0, availableStock - (existingItem?.quantity || 0))} more available in stock.`);
-      }
-
       if (existingItem) {
         return prisma.cartItem.update({
           where: { id: existingItem.id },
-          data: { quantity: targetQuantity },
+          data: { quantity: existingItem.quantity + quantity },
           select: cartItemSelect,
         });
       }
 
       return prisma.cartItem.create({
-        data: { cartId, variantId, quantity: targetQuantity },
+        data: { cartId, variantId, quantity },
         select: cartItemSelect,
       });
     }
@@ -108,23 +95,16 @@ export const cartService = {
     const cart = JSON.parse(cartStr);
     const existingIndex = cart.items.findIndex((i: any) => i.variantId === variantId);
     
-    const currentQty = existingIndex >= 0 ? cart.items[existingIndex].quantity : 0;
-    const targetQuantity = currentQty + quantity;
-
-    if (targetQuantity > availableStock) {
-      throw new Error(`Cannot add ${quantity} items. Only ${Math.max(0, availableStock - currentQty)} more available in stock.`);
-    }
-    
     let updatedItem;
     if (existingIndex >= 0) {
-      cart.items[existingIndex].quantity = targetQuantity;
+      cart.items[existingIndex].quantity += quantity;
       updatedItem = cart.items[existingIndex];
     } else {
       updatedItem = {
         id: crypto.randomUUID(),
         cartId,
         variantId,
-        quantity: targetQuantity,
+        quantity,
         variant: variantData,
       };
       cart.items.push(updatedItem);
@@ -143,20 +123,6 @@ export const cartService = {
       if (quantity <= 0) {
         return prisma.cartItem.delete({ where: { id: itemId } });
       }
-
-      const existingItem = await prisma.cartItem.findUnique({ where: { id: itemId } });
-      if (!existingItem) throw new Error('Cart item not found');
-
-      const invStats = await prisma.inventoryItem.aggregate({
-        where: { variantId: existingItem.variantId },
-        _sum: { quantity: true, reservedQty: true }
-      });
-      const availableStock = (invStats._sum.quantity || 0) - (invStats._sum.reservedQty || 0);
-
-      if (quantity > availableStock) {
-        throw new Error(`Cannot update to ${quantity}. Only ${availableStock} available in stock.`);
-      }
-
       return prisma.cartItem.update({
         where: { id: itemId },
         data: { quantity },
@@ -174,18 +140,7 @@ export const cartService = {
       cart.items = cart.items.filter((i: any) => i.id !== itemId);
     } else {
       const item = cart.items.find((i: any) => i.id === itemId);
-      if (item) {
-        const invStats = await prisma.inventoryItem.aggregate({
-          where: { variantId: item.variantId },
-          _sum: { quantity: true, reservedQty: true }
-        });
-        const availableStock = (invStats._sum.quantity || 0) - (invStats._sum.reservedQty || 0);
-        
-        if (quantity > availableStock) {
-          throw new Error(`Cannot update to ${quantity}. Only ${availableStock} available in stock.`);
-        }
-        item.quantity = quantity;
-      }
+      if (item) item.quantity = quantity;
     }
 
     await redisClient.setex(redisKey, GUEST_CART_TTL, JSON.stringify(cart));

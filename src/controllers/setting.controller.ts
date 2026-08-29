@@ -36,42 +36,4 @@ export class SettingController {
       next(error);
     }
   }
-
-  static async create(req: Request, res: Response, next: NextFunction) {
-    try {
-      const { key, value, type, group, isPublic, description } = req.body;
-      if (!key || !value) {
-        res.status(400).json({ success: false, message: "Key and value are required" });
-        return;
-      }
-      
-      const newSetting = await SettingService.createSetting({
-        key,
-        value,
-        type: type || "string",
-        group: group || "custom",
-        isPublic: isPublic === undefined ? false : Boolean(isPublic),
-        description
-      });
-      
-      res.status(201).json({ success: true, data: newSetting, message: "Setting created successfully" });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  static async delete(req: Request, res: Response, next: NextFunction) {
-    try {
-      const { key } = req.params;
-      if (!key) {
-        res.status(400).json({ success: false, message: "Key is required" });
-        return;
-      }
-
-      await SettingService.deleteSetting(key as string);
-      res.status(200).json({ success: true, message: "Setting deleted successfully" });
-    } catch (error) {
-      next(error);
-    }
-  }
 }

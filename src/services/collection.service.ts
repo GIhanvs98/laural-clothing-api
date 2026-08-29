@@ -64,16 +64,9 @@ type CollectionCreateData = {
 type CollectionUpdateData = Partial<CollectionCreateData>;
 
 export const collectionService = {
-  async getCollections(search?: string) {
-    const cacheKey = search ? `collections:search:${search}` : 'collections:all';
-    return withCache(cacheKey, CACHE_TTL, async () => {
+  async getCollections() {
+    return withCache('collections:all', CACHE_TTL, async () => {
       const collections = await prisma.collection.findMany({
-        where: search ? {
-          OR: [
-            { title: { contains: search, mode: 'insensitive' } },
-            { description: { contains: search, mode: 'insensitive' } },
-          ],
-        } : undefined,
         include: { _count: { select: { products: true } } },
         orderBy: { createdAt: 'desc' },
       });
