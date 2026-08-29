@@ -3,12 +3,31 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import * as dotenv from 'dotenv';
 import { requestContext } from '../context/RequestContext';
+import { logger } from '../utils/logger';
 
 dotenv.config();
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const pool = new Pool({ 
+  connectionString: process.env.DATABASE_URL,
+  max: 50,
+  idleTimeoutMillis: 30000 
+});
 const adapter = new PrismaPg(pool);
-const basePrisma = new PrismaClient({ adapter });
+const basePrisma = new PrismaClient({ 
+  adapter,
+  log: [
+    { emit: 'event', level: 'query' },
+    { emit: 'stdout', level: 'error' },
+    { emit: 'stdout', level: 'info' },
+    { emit: 'stdout', level: 'warn' },
+  ],
+});
+
+basePrisma.$on('query' as never, (e: any) => {
+  if (e.duration > 50) {
+    logger.warn(`Slow Query [${e.duration}ms]: ${e.query}`);
+  }
+});
 
 /**
  * Global Prisma Extension for Row-Level Security (RLS)
@@ -40,7 +59,10 @@ const prisma = basePrisma.$extends({
                    set_config('app.is_admin', ${isAdmin.toString()}, true)
           `,
           query(args),
-        ]);
+        ], {
+          maxWait: 15000,
+          timeout: 30000,
+        });
         
         return result;
       },

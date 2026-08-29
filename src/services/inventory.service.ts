@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import prisma from '../config/prisma';
 import { signImageUrl } from './product.service';
+import { invalidateCache } from '../utils/cache.util';
 
 export const inventoryService = {
 
@@ -164,18 +165,32 @@ export const inventoryService = {
   },
 
   // ─── Adjust Stock ─────────────────────────────────────────────────────────────
-  async adjustStock(data: {
-    variantId: string;
-    branchId: string;
-    type: 'RECEIVE' | 'DEDUCT';
-    quantity: number;
-    reason?: string;
-    reference?: string;
-  }) {
+  async adjustStock(
+    data: {
+      variantId: string;
+      branchId: string;
+      type: 'RECEIVE' | 'DEDUCT';
+      quantity: number;
+      reason?: string;
+      reference?: string;
+    },
+    tx?: any
+  ) {
+    const db = tx || prisma;
     const { variantId, branchId, type, quantity, reason, reference } = data;
     const delta = type === 'RECEIVE' ? Math.abs(quantity) : -Math.abs(quantity);
 
-    const inv = await prisma.inventoryItem.upsert({
+    if (type === 'DEDUCT') {
+      const currentInv = await db.inventoryItem.findUnique({
+        where: { variantId_branchId: { variantId, branchId } }
+      });
+      
+      if (!currentInv || currentInv.quantity < Math.abs(delta)) {
+        throw new Error(`Insufficient Stock for variant ${variantId} in branch ${branchId}`);
+      }
+    }
+
+    const inv = await db.inventoryItem.upsert({
       where: { variantId_branchId: { variantId, branchId } },
       create: { variantId, branchId, quantity: Math.max(0, delta) },
       update: { quantity: { increment: delta } },
@@ -184,7 +199,7 @@ export const inventoryService = {
     // We no longer sync ProductVariant.quantity, because inventory is branch-specific.
     // If needed, we'd sum all branch quantities.
 
-    const tx = await prisma.inventoryTransaction.create({
+    const transaction = await db.inventoryTransaction.create({
       data: {
         variantId,
         branchId,
@@ -195,7 +210,9 @@ export const inventoryService = {
       },
     });
 
-    return { inventoryItem: inv, transaction: tx };
+    await invalidateCache('product*');
+
+    return { inventoryItem: inv, transaction };
   },
 
   // ─── Reservations ─────────────────────────────────────────────────────────────
@@ -218,6 +235,8 @@ export const inventoryService = {
       data: { variantId, branchId, type: 'RESERVE', quantityChange: 0, reason: 'Order Reservation', reference: orderId }
     });
 
+    await invalidateCache('product*');
+
     return updated;
   },
 
@@ -239,6 +258,8 @@ export const inventoryService = {
     await prisma.inventoryTransaction.create({
       data: { variantId, branchId, type: 'RELEASE', quantityChange: 0, reason: 'Reservation Released', reference: orderId }
     });
+
+    await invalidateCache('product*');
 
     return updated;
   },

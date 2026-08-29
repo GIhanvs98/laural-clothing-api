@@ -1,6 +1,7 @@
 import prisma from '../config/prisma';
 import { redisClient } from '../config/redis';
 import crypto from 'crypto';
+import { cartSelect, cartItemSelect } from '../dto/cart.dto';
 
 const GUEST_CART_TTL = 7 * 24 * 60 * 60; // 7 days
 
@@ -8,7 +9,7 @@ const GUEST_CART_TTL = 7 * 24 * 60 * 60; // 7 days
 async function getVariantWithProduct(variantId: string) {
   return prisma.productVariant.findUnique({
     where: { id: variantId },
-    include: { product: { include: { variants: true } } },
+    include: { product: { select: { id: true, name: true, slug: true, variants: { select: { id: true, name: true, sku: true, price: true, salePrice: true, stockStatus: true, quantity: true, color: true, size: true, featuredImage: true, gallery: true } } } } },
   });
 }
 
@@ -21,13 +22,13 @@ export const cartService = {
       // Authenticated Cart -> DB
       let cart = await prisma.cart.findFirst({
         where: { customerId, status: 'ACTIVE' },
-        include: { items: { include: { variant: { include: { product: { include: { variants: true } } } } } } },
+        select: cartSelect,
       });
 
       if (!cart) {
         cart = await prisma.cart.create({
           data: { customerId, status: 'ACTIVE' },
-          include: { items: { include: { variant: { include: { product: { include: { variants: true } } } } } } },
+          select: cartSelect,
         });
       }
       return cart;
@@ -66,54 +67,64 @@ export const cartService = {
     const variantData = await getVariantWithProduct(variantId);
     if (!variantData) throw new Error('Variant not found');
 
+    // --- Server-Side Stock Validation ---
+    const invStats = await prisma.inventoryItem.aggregate({
+      where: { variantId },
+      _sum: { quantity: true, reservedQty: true }
+    });
+    const availableStock = (invStats._sum.quantity || 0) - (invStats._sum.reservedQty || 0);
+    // ------------------------------------
+
     if (!isGuest) {
       // Authenticated Cart -> DB
       const existingItem = await prisma.cartItem.findUnique({
         where: { cartId_variantId: { cartId, variantId } },
       });
 
+      const targetQuantity = existingItem ? existingItem.quantity + quantity : quantity;
+      if (targetQuantity > availableStock) {
+        throw new Error(`Cannot add ${quantity} items. Only ${Math.max(0, availableStock - (existingItem?.quantity || 0))} more available in stock.`);
+      }
+
       if (existingItem) {
         return prisma.cartItem.update({
           where: { id: existingItem.id },
-          data: { quantity: existingItem.quantity + quantity },
-          include: { variant: { include: { product: true } } },
+          data: { quantity: targetQuantity },
+          select: cartItemSelect,
         });
       }
 
       return prisma.cartItem.create({
-        data: { cartId, variantId, quantity },
-        include: { variant: { include: { product: true } } },
+        data: { cartId, variantId, quantity: targetQuantity },
+        select: cartItemSelect,
       });
     }
 
     // Guest Cart -> Redis
     const redisKey = `cart:${cartId}`; // cartId is sessionId for guests
     const cartStr = await redisClient.get(redisKey);
-    let cart: any;
-    if (!cartStr) {
-      cart = {
-        id: cartId,
-        sessionId: cartId,
-        status: 'ACTIVE',
-        items: [],
-        createdAt: new Date().toISOString(),
-      };
-    } else {
-      cart = JSON.parse(cartStr);
-    }
+    if (!cartStr) throw new Error('Guest cart not found');
     
+    const cart = JSON.parse(cartStr);
     const existingIndex = cart.items.findIndex((i: any) => i.variantId === variantId);
+    
+    const currentQty = existingIndex >= 0 ? cart.items[existingIndex].quantity : 0;
+    const targetQuantity = currentQty + quantity;
+
+    if (targetQuantity > availableStock) {
+      throw new Error(`Cannot add ${quantity} items. Only ${Math.max(0, availableStock - currentQty)} more available in stock.`);
+    }
     
     let updatedItem;
     if (existingIndex >= 0) {
-      cart.items[existingIndex].quantity += quantity;
+      cart.items[existingIndex].quantity = targetQuantity;
       updatedItem = cart.items[existingIndex];
     } else {
       updatedItem = {
         id: crypto.randomUUID(),
         cartId,
         variantId,
-        quantity,
+        quantity: targetQuantity,
         variant: variantData,
       };
       cart.items.push(updatedItem);
@@ -130,28 +141,51 @@ export const cartService = {
     if (!isGuest) {
       // Authenticated Cart -> DB
       if (quantity <= 0) {
-        return prisma.cartItem.deleteMany({ where: { id: itemId, cartId } });
+        return prisma.cartItem.delete({ where: { id: itemId } });
       }
+
+      const existingItem = await prisma.cartItem.findUnique({ where: { id: itemId } });
+      if (!existingItem) throw new Error('Cart item not found');
+
+      const invStats = await prisma.inventoryItem.aggregate({
+        where: { variantId: existingItem.variantId },
+        _sum: { quantity: true, reservedQty: true }
+      });
+      const availableStock = (invStats._sum.quantity || 0) - (invStats._sum.reservedQty || 0);
+
+      if (quantity > availableStock) {
+        throw new Error(`Cannot update to ${quantity}. Only ${availableStock} available in stock.`);
+      }
+
       return prisma.cartItem.update({
         where: { id: itemId },
         data: { quantity },
-        include: { variant: { include: { product: true } } },
+        select: cartItemSelect,
       });
     }
 
     // Guest Cart -> Redis
     const redisKey = `cart:${cartId}`;
     const cartStr = await redisClient.get(redisKey);
-    if (!cartStr) {
-      return true;
-    }
+    if (!cartStr) throw new Error('Guest cart not found');
 
     const cart = JSON.parse(cartStr);
     if (quantity <= 0) {
       cart.items = cart.items.filter((i: any) => i.id !== itemId);
     } else {
       const item = cart.items.find((i: any) => i.id === itemId);
-      if (item) item.quantity = quantity;
+      if (item) {
+        const invStats = await prisma.inventoryItem.aggregate({
+          where: { variantId: item.variantId },
+          _sum: { quantity: true, reservedQty: true }
+        });
+        const availableStock = (invStats._sum.quantity || 0) - (invStats._sum.reservedQty || 0);
+        
+        if (quantity > availableStock) {
+          throw new Error(`Cannot update to ${quantity}. Only ${availableStock} available in stock.`);
+        }
+        item.quantity = quantity;
+      }
     }
 
     await redisClient.setex(redisKey, GUEST_CART_TTL, JSON.stringify(cart));
@@ -163,32 +197,6 @@ export const cartService = {
    */
   async removeItem(cartId: string, itemId: string, isGuest: boolean = false) {
     return this.updateItemQuantity(cartId, itemId, 0, isGuest);
-  },
-
-  /**
-   * Clears all items from the cart.
-   */
-  async clearCart(cartId: string, isGuest: boolean = false) {
-    if (!isGuest) {
-      await prisma.cartItem.deleteMany({
-        where: { cartId },
-      });
-      return prisma.cart.findUnique({
-        where: { id: cartId },
-        include: { items: { include: { variant: { include: { product: { include: { variants: true } } } } } } },
-      });
-    }
-
-    const redisKey = `cart:${cartId}`;
-    const newCart = {
-      id: cartId,
-      sessionId: cartId,
-      status: 'ACTIVE',
-      items: [],
-      createdAt: new Date().toISOString(),
-    };
-    await redisClient.setex(redisKey, GUEST_CART_TTL, JSON.stringify(newCart));
-    return newCart;
   },
 
   /**

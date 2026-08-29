@@ -7,7 +7,9 @@ const router = Router();
 // Sessions
 router.post('/sessions/open', authenticateJWT, requirePermission("pos:shift_open_close"), posController.openSession);
 router.post('/sessions/close', authenticateJWT, requirePermission("pos:shift_open_close"), posController.closeSession);
+router.get('/sessions/current/expected-closing', authenticateJWT, posController.getExpectedClosing);
 router.get('/sessions/current', authenticateJWT, posController.getCurrentSession);
+router.get('/sessions/summary', authenticateJWT, posController.getSessionSummary);
 
 // Vouchers
 router.post('/vouchers/generate', authenticateJWT, requirePermission("pos:sales_mode"), posController.generateVoucher);

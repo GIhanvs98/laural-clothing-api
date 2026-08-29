@@ -4,7 +4,8 @@ import { categoryService } from '../services/category.service';
 export const categoryController = {
   async getCategories(req: Request, res: Response) {
     try {
-      const categories = await categoryService.getCategories();
+      const search = req.query.search as string;
+      const categories = await categoryService.getCategories(search);
       res.json({ data: categories, total: categories.length });
     } catch (error) {
       console.error('Error fetching categories:', error);

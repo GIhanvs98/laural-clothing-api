@@ -5,12 +5,12 @@ dotenv.config();
 
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
 
-const isProduction = process.env.NODE_ENV === 'production';
+const isTls = redisUrl.startsWith('rediss://');
 
 export const redisClient = new Redis(redisUrl, {
   maxRetriesPerRequest: 3,
   connectTimeout: 10000,
-  tls: isProduction ? { rejectUnauthorized: false } : undefined, // Enable TLS in production
+  tls: isTls ? { rejectUnauthorized: false } : undefined, // Enable TLS only for rediss:// URLs
   retryStrategy(times) {
     const delay = Math.min(times * 50, 2000);
     return delay;

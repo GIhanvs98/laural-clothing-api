@@ -15,27 +15,15 @@ const CSRF_HEADER_NAME = 'x-csrf-token';
 // Safe methods that do not modify state
 const safeMethods = ['GET', 'HEAD', 'OPTIONS'];
 
-// Routes that expect external POSTs or custom header-authenticated requests without CSRF tokens
+// Routes that expect external POSTs without CSRF tokens (e.g. webhooks)
 const excludedRoutes = [
-  '/api/v1/payments',
-  '/api/v1/inventory/shipping/webhook',
-  '/api/v1/cart',
-  '/api/v1/checkout',
-  '/api/v1/orders',
-  '/api/v1/wishlist',
-  '/api/v1/addresses',
-  '/api/v1/reviews',
-  '/api/v1/auth',
-  '/api/v1/otp',
-  '/health'
+  '/api/v1/payments/webhook',
+  '/api/v1/inventory/shipping/webhook'
 ];
 
 export const csrfMiddleware = (req: Request, res: Response, next: NextFunction) => {
-  // In development mode, or if the route is explicitly excluded from CSRF
-  if (
-    process.env.NODE_ENV !== 'production' ||
-    excludedRoutes.some(route => req.originalUrl?.startsWith(route) || req.path?.startsWith(route))
-  ) {
+  // Check if the route is explicitly excluded from CSRF
+  if (excludedRoutes.some(route => req.originalUrl.startsWith(route))) {
     return next();
   }
 
@@ -44,10 +32,11 @@ export const csrfMiddleware = (req: Request, res: Response, next: NextFunction) 
   
   if (!csrfCookie) {
     csrfCookie = crypto.randomBytes(32).toString('hex');
+    const isProd = process.env.NODE_ENV === 'production';
     res.cookie(CSRF_COOKIE_NAME, csrfCookie, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict', // Essential for CSRF protection
+      secure: isProd,
+      sameSite: isProd ? 'none' : 'lax', // Must be none for cross-site Railway subdomains
       maxAge: 24 * 60 * 60 * 1000 // 24 hours
     });
   }

@@ -102,17 +102,16 @@ export const checkoutService = {
 
     // 2. Calculation
     const totals = await this.calculateCheckout(cartId, shippingAddress, isGuest);
-    const appliedLoyaltyPoints = Math.max(0, Number((customerData as any).appliedLoyaltyPoints || 0));
-    const finalTotal = Math.max(0, totals.total - appliedLoyaltyPoints);
-    const loyaltyPointsEarned = Math.round(finalTotal * 0.01 * 100) / 100; // 1% loyalty points on order cost
 
     // 2.5 Evaluate Fraud Risk
+    // deviceFingerprint is not explicitly passed to initiateCheckout, so we'll optionally pass it.
+    // Wait, the signature of initiateCheckout doesn't have deviceFingerprint. Let's update the signature to accept it.
     const fraudEvaluation = await fraudService.evaluateCheckoutRisk(
       cart,
       customerData,
       shippingAddress,
-      { ...totals, total: finalTotal },
-      customerData.deviceFingerprint
+      totals,
+      customerData.deviceFingerprint // I will pass this from controller
     );
 
     if (fraudEvaluation.riskLevel === 'BLOCKED') {
@@ -120,88 +119,79 @@ export const checkoutService = {
       throw new Error('Checkout blocked due to high fraud risk.');
     }
 
-    // 3. Create Order
+    // 3. Create Order & Deduct Inventory in Transaction
     const orderNumber = `LC-${Date.now().toString().slice(-6)}`;
     
-    const order = await prisma.order.create({
-      data: {
-        orderNumber,
-        customerId: customer.id,
-        status: 'PENDING',
-        paymentMethod: paymentMethod || 'COD',
-        paymentStatus: 'UNPAID',
-        subtotal: totals.subtotal,
-        shippingFee: totals.shippingFee,
-        tax: totals.tax,
-        total: finalTotal,
-        loyaltyPointsEarned,
-        loyaltyPointsUsed: appliedLoyaltyPoints,
-        shippingAddress: shippingAddress,
-        fraudScore: fraudEvaluation.fraudScore,
-        riskLevel: fraudEvaluation.riskLevel,
-        fraudSignals: fraudEvaluation.fraudSignals,
-        items: {
-          create: cart.items.map((item: any) => ({
-            variantId: item.variantId,
-            quantity: item.quantity,
-            priceAtPurchase: item.variant.salePrice ?? item.variant.price,
-          })),
-        },
-      },
-      include: {
-        items: true,
-      },
-    });
-
-    // Credit customer loyalty points (1% earned minus any points redeemed)
-    try {
-      await prisma.customer.update({
-        where: { id: customer.id },
+    const order = await prisma.$transaction(async (tx) => {
+      const createdOrder = await tx.order.create({
         data: {
-          loyaltyPoints: {
-            increment: loyaltyPointsEarned - appliedLoyaltyPoints,
+          orderNumber,
+          customerId: customer.id,
+          status: 'PENDING',
+          paymentMethod: paymentMethod || 'COD',
+          paymentStatus: 'UNPAID',
+          subtotal: totals.subtotal,
+          shippingFee: totals.shippingFee,
+          tax: totals.tax,
+          total: totals.total,
+          shippingAddress: shippingAddress,
+          fraudScore: fraudEvaluation.fraudScore,
+          riskLevel: fraudEvaluation.riskLevel,
+          fraudSignals: fraudEvaluation.fraudSignals,
+          items: {
+            create: cart.items.map((item: any) => ({
+              variantId: item.variantId,
+              quantity: item.quantity,
+              priceAtPurchase: item.variant.salePrice ?? item.variant.price,
+            })),
           },
         },
+        include: {
+          items: true,
+        },
       });
-    } catch (lpErr) {
-      console.warn('[LoyaltyPoints] Failed to update customer points balance:', lpErr);
-    }
+
+      // 3.5 Deduct Inventory
+      let onlineBranch = await tx.branch.findFirst({
+        where: { OR: [{ name: 'Online' }, { code: 'ONLINE' }] }
+      });
+      
+      // Fallback if no online branch exists
+      if (!onlineBranch) {
+        onlineBranch = await tx.branch.findFirst({ where: { isActive: true } });
+      }
+
+      if (onlineBranch) {
+        for (const item of cart.items) {
+          await inventoryService.adjustStock({
+            variantId: item.variantId,
+            branchId: onlineBranch.id,
+            type: 'DEDUCT',
+            quantity: item.quantity,
+            reason: 'Online Order Checkout',
+            reference: createdOrder.id
+          }, tx); // Pass the transaction client
+        }
+      }
+
+      // 4. Clean up Cart (DB)
+      if (!isGuest) {
+        await tx.cart.update({
+          where: { id: cartId },
+          data: { status: 'CONVERTED' },
+        });
+      }
+
+      return createdOrder;
+    });
 
     if (fraudEvaluation.riskLevel === 'HIGH') {
       await alertService.sendFraudAlert(order.orderNumber, fraudEvaluation.fraudScore, fraudEvaluation.riskLevel, fraudEvaluation.fraudSignals, cartId);
     }
 
-    // 3.5 Deduct Inventory
-    let onlineBranch = await prisma.branch.findFirst({
-      where: { OR: [{ name: 'Online' }, { code: 'ONLINE' }] }
-    });
-    
-    // Fallback if no online branch exists
-    if (!onlineBranch) {
-      onlineBranch = await prisma.branch.findFirst({ where: { isActive: true } });
-    }
-
-    if (onlineBranch) {
-      for (const item of cart.items) {
-        await inventoryService.adjustStock({
-          variantId: item.variantId,
-          branchId: onlineBranch.id,
-          type: 'DEDUCT',
-          quantity: item.quantity,
-          reason: 'Online Order Checkout',
-          reference: order.id
-        });
-      }
-    }
-
-    // 4. Clean up Cart
+    // 4. Clean up Cart (Redis for guests)
     if (isGuest) {
       await redisClient.del(`cart:${cartId}`);
-    } else {
-      await prisma.cart.update({
-        where: { id: cartId },
-        data: { status: 'CONVERTED' },
-      });
     }
 
     // 5. Initiate Payment

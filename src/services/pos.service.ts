@@ -1,0 +1,290 @@
+import prisma from '../config/prisma';
+
+export const posService = {
+  async openSession(data: { branchId: string; terminalId: string; userId: string; openingFloat: number }) {
+    // Upsert branch and terminal to prevent FK constraint violations
+    const branch = await prisma.branch.upsert({
+      where: { code: data.branchId },
+      update: {},
+      create: {
+        code: data.branchId,
+        name: "Main Branch",
+        type: "RETAIL"
+      }
+    });
+
+    const user = await prisma.user.upsert({
+      where: { id: data.userId },
+      update: {},
+      create: {
+        id: data.userId,
+        email: `pos_${data.userId}@example.com`,
+        password: "mockpassword",
+        name: "POS Cashier",
+        status: "ACTIVE"
+      }
+    });
+
+    const terminal = await prisma.posTerminal.upsert({
+      where: { id: data.terminalId },
+      update: { branchId: branch.id },
+      create: {
+        id: data.terminalId,
+        name: "POS Terminal 1",
+        branchId: branch.id
+      }
+    });
+
+    const existing = await prisma.posSession.findFirst({
+      where: { terminalId: terminal.id, status: 'OPEN' }
+    });
+    
+    if (existing) {
+      throw new Error('Terminal already has an open session.');
+    }
+
+    return await prisma.posSession.create({
+      data: {
+        branchId: branch.id,
+        terminalId: terminal.id,
+        userId: user.id,
+        openingFloat: data.openingFloat,
+        status: 'OPEN'
+      }
+    });
+  },
+
+  async getExpectedClosing(sessionId: string) {
+    const session = await prisma.posSession.findUnique({
+      where: { id: sessionId }
+    });
+
+    if (!session || session.status === 'CLOSED') {
+      throw new Error('Session not found or already closed.');
+    }
+
+    const cashOrders = await prisma.order.aggregate({
+      where: { 
+        posSessionId: sessionId, 
+        paymentMethod: 'CASH', 
+        paymentStatus: { in: ['PAID', 'REFUNDED'] }
+      },
+      _sum: { total: true }
+    });
+
+    const expectedClosing = session.openingFloat + (cashOrders._sum.total || 0);
+    return { expectedClosing };
+  },
+
+  async closeSession(data: { sessionId: string; actualClosing: number }) {
+    const { expectedClosing } = await this.getExpectedClosing(data.sessionId);
+    const variance = data.actualClosing - expectedClosing;
+    
+    return await prisma.posSession.update({
+      where: { id: data.sessionId },
+      data: {
+        status: 'CLOSED',
+        closedAt: new Date(),
+        expectedClosing,
+        actualClosing: data.actualClosing,
+        variance
+      }
+    });
+  },
+
+  async getSessionSummary(sessionId: string) {
+    const session = await prisma.posSession.findUnique({
+      where: { id: sessionId },
+      include: { terminal: true, branch: true }
+    });
+    if (!session) throw new Error("Session not found");
+
+    const orders = await prisma.order.findMany({
+      where: { posSessionId: sessionId }
+    });
+
+    const summary = {
+      openingFloat: session.openingFloat,
+      totalSales: 0,
+      totalReturns: 0, // In this system, maybe total returns are logged via vouchers or negative orders. Assuming we'll expand this later.
+      paymentMethods: {} as Record<string, number>,
+      netTotal: 0
+    };
+
+    orders.forEach(order => {
+      summary.totalSales += order.total;
+      summary.netTotal += order.total;
+      const method = order.paymentMethod || 'UNKNOWN';
+      summary.paymentMethods[method] = (summary.paymentMethods[method] || 0) + order.total;
+    });
+
+    return {
+      session,
+      summary
+    };
+  },
+
+  async getCurrentSession(terminalId: string) {
+    return await prisma.posSession.findFirst({
+      where: { terminalId, status: 'OPEN' },
+      include: {
+        branch: true,
+        terminal: true,
+        user: true
+      }
+    });
+  },
+
+  async generateVoucher(data: { branchId: string; returnedItems: any[]; value: number; orderId?: string }) {
+    if (!data.orderId) {
+      throw new Error("Order ID is required to generate a return voucher securely.");
+    }
+    
+    // We defer to the order.service to securely calculate returned quantities and restock
+    const { orderService } = require('./order.service');
+    const itemsToReturn = data.returnedItems.map(item => ({ variantId: item.variantId || item.id, qty: item.qty }));
+    await orderService.refundPartialOrder(data.orderId, itemsToReturn, "STORE_CREDIT");
+
+    // After successfully marking items returned and restocking, generate the voucher
+    const code = `VCH-${data.value}-${Math.floor(Math.random() * 10000)}`;
+    return await prisma.exchangeVoucher.create({
+      data: {
+        code,
+        value: data.value,
+        status: 'ACTIVE'
+      }
+    });
+  },
+
+  async validateVoucher(code: string) {
+    const voucher = await prisma.exchangeVoucher.findUnique({
+      where: { code }
+    });
+    
+    if (!voucher) throw new Error('Voucher not found');
+    if (voucher.status !== 'ACTIVE') throw new Error('Voucher is already used or invalid');
+    
+    return voucher;
+  },
+
+  async processPosOrder(data: {
+    branchId: string;
+    sessionId: string;
+    customerId?: string;
+    items: any[];
+    paymentMethod: string;
+    appliedVouchers: string[];
+    subtotal?: number;
+    total?: number;
+    tax?: number;
+  }) {
+    return await prisma.$transaction(async (tx) => {
+      const orderNumber = `POS-${Date.now()}`;
+      
+      // 1. Validate vouchers and calculate deductions
+      let voucherDeduction = 0;
+      const validVouchers = [];
+      if (data.appliedVouchers && data.appliedVouchers.length > 0) {
+        for (const vCode of data.appliedVouchers) {
+          const voucher = await tx.exchangeVoucher.findUnique({ where: { code: vCode } });
+          if (voucher && voucher.status === 'ACTIVE') {
+            voucherDeduction += voucher.value;
+            validVouchers.push(voucher.id);
+          }
+        }
+      }
+      
+      // 1.5 Server-side recalculation
+      let calculatedSubtotal = 0;
+      const orderItems = [];
+
+      for (const item of data.items) {
+        const vId = item.variantId || item.id;
+        const variant = await tx.productVariant.findUnique({
+          where: { id: vId }
+        });
+        if (!variant) throw new Error(`Variant ${vId} not found`);
+
+        const price = variant.salePrice ?? variant.price;
+        calculatedSubtotal += price * item.qty;
+
+        orderItems.push({
+          variantId: vId,
+          quantity: item.qty,
+          priceAtPurchase: price
+        });
+      }
+
+      const calculatedTax = 0;
+      const calculatedTotal = Math.max(0, (calculatedSubtotal + calculatedTax) - voucherDeduction);
+
+      const branch = await tx.branch.findFirst({
+        where: { OR: [{ id: data.branchId }, { code: data.branchId }] }
+      });
+      if (!branch) throw new Error(`Branch ${data.branchId} not found`);
+
+      // 2. Create Order
+      const order = await tx.order.create({
+        data: {
+          orderNumber,
+          type: 'POS',
+          status: 'DELIVERED', // POS orders are delivered instantly
+          paymentStatus: 'PAID',
+          paymentMethod: data.paymentMethod,
+          subtotal: calculatedSubtotal,
+          tax: calculatedTax,
+          shippingFee: 0,
+          total: calculatedTotal,
+          branchId: branch.id,
+          posSessionId: data.sessionId,
+          customerId: data.customerId || null,
+          items: {
+            create: orderItems
+          }
+        }
+      });
+      
+      // 3. Update Vouchers
+      if (validVouchers.length > 0) {
+        await tx.exchangeVoucher.updateMany({
+          where: { id: { in: validVouchers } },
+          data: { status: 'USED', usedAt: new Date(), orderId: order.id }
+        });
+      }
+      
+      // 4. Deduct Inventory
+      for (const item of data.items) {
+        const vId = item.variantId || item.id;
+        
+        const inventoryItem = await tx.inventoryItem.findUnique({
+          where: { variantId_branchId: { variantId: vId, branchId: branch.id } }
+        });
+        
+        if (!inventoryItem || inventoryItem.quantity < item.qty) {
+          throw new Error(`Insufficient stock for variant ${vId}. Available: ${inventoryItem?.quantity || 0}, Requested: ${item.qty}`);
+        }
+        
+        await tx.inventoryItem.update({
+          where: { variantId_branchId: { variantId: vId, branchId: branch.id } },
+          data: { quantity: { decrement: item.qty } }
+        });
+        
+        await tx.inventoryTransaction.create({
+          data: {
+            variantId: vId,
+            branchId: branch.id,
+            type: 'SALE',
+            quantityChange: -item.qty,
+            reference: order.id,
+            reason: 'POS Sale'
+          }
+        });
+      }
+      
+      return order;
+    }, {
+      timeout: 20000,
+      maxWait: 20000,
+    });
+  }
+};

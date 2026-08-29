@@ -7,3 +7,5 @@ build/
 coverage/
 databaseOLD/
 config.bat
+.env
+.env.local

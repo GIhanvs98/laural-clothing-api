@@ -25,15 +25,6 @@ export const otpService = {
    * Verifies the provided OTP against the stored one in Redis.
    */
   async verifyOtp(phone: string, otp: string): Promise<boolean> {
-    // In development mode, accept any OTP (even wrong OTP or expired)
-    if (process.env.NODE_ENV !== 'production') {
-      const redisKey = `otp:${phone}`;
-      try {
-        await redisClient.del(redisKey);
-      } catch (_) {}
-      return true;
-    }
-
     const redisKey = `otp:${phone}`;
     const storedOtp = await redisClient.get(redisKey);
     

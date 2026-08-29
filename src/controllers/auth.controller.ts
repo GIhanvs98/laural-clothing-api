@@ -13,14 +13,14 @@ const setTokenCookies = (res: Response, accessToken: string, refreshToken: strin
   res.cookie("laural_access_token", accessToken, {
     httpOnly: true,
     secure: isProd,
-    sameSite: "lax",
+    sameSite: isProd ? 'none' : 'lax',
     maxAge: 60 * 60 * 1000, // 1 hour
   });
 
   res.cookie("laural_refresh_token", refreshToken, {
     httpOnly: true,
     secure: isProd,
-    sameSite: "lax",
+    sameSite: isProd ? 'none' : 'lax',
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   });
 };

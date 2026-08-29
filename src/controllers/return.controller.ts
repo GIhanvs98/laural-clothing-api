@@ -66,3 +66,16 @@ export const updateReturnStatus = async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+export const bulkUpdateReturnStatus = async (req: Request, res: Response) => {
+  try {
+    const { resolutions } = req.body;
+    if (!resolutions || typeof resolutions !== 'object') {
+      return res.status(400).json({ error: 'resolutions object is required' });
+    }
+    const results = await returnService.bulkUpdateReturnStatus(resolutions);
+    res.json(results);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};

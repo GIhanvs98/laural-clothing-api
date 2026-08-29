@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { inventoryService } from '../services/inventory.service';
 import { FardarService } from '../services/fardar.service';
+import prisma from '../config/prisma';
 
 // GET /api/inventory/branches
 export const getBranches = async (req: Request, res: Response) => {
@@ -146,7 +147,35 @@ export const updateTransferStatus = async (req: Request, res: Response) => {
 // POST /api/inventory/shipping/create
 export const createShipment = async (req: Request, res: Response) => {
   try {
-    const shipment = await FardarService.createShipment(req.body);
+    const details = req.body;
+    // Map orderReference to orderId if needed
+    if (details.orderReference && !details.orderId) {
+      details.orderId = details.orderReference;
+    }
+    const shipment = await FardarService.createShipment(details);
+    
+    // Attempt to update Order if it exists
+    if (shipment.success && shipment.trackingNumber && details.orderId) {
+      const order = await prisma.order.findFirst({
+        where: {
+          OR: [
+            { id: details.orderId },
+            { orderNumber: details.orderId }
+          ]
+        }
+      });
+      if (order) {
+        await prisma.order.update({
+          where: { id: order.id },
+          data: {
+            trackingNumber: shipment.trackingNumber,
+            labelUrl: shipment.labelUrl,
+            status: 'DISPATCHED' // If they just created a shipment, it's dispatched
+          }
+        });
+      }
+    }
+    
     res.status(201).json(shipment);
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -167,7 +196,29 @@ export const trackShipment = async (req: Request, res: Response) => {
 export const fardarWebhook = async (req: Request, res: Response) => {
   try {
     console.log('[Webhook] Fardar event received:', req.body);
-    // In reality, verify signature, update Order status in DB, etc.
+    const { trackingNumber, status } = req.body;
+    
+    if (trackingNumber && status) {
+      const statusMap: Record<string, string> = {
+        'DELIVERED': 'DELIVERED',
+        'RETURNED': 'CANCELLED',
+        'OUT_FOR_DELIVERY': 'DISPATCHED',
+        'IN_TRANSIT': 'DISPATCHED',
+        'PICKED_UP': 'PROCESSING',
+      };
+      
+      const mappedStatus = statusMap[status];
+      if (mappedStatus) {
+        const order = await prisma.order.findFirst({ where: { trackingNumber } });
+        if (order) {
+          await prisma.order.update({
+            where: { id: order.id },
+            data: { status: mappedStatus }
+          });
+        }
+      }
+    }
+    
     res.status(200).send('OK');
   } catch (e: any) {
     res.status(500).json({ error: e.message });

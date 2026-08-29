@@ -51,12 +51,13 @@ export const createQuickDispatch = async (req: Request, res: Response) => {
 
 export const getOrders = async (req: Request, res: Response) => {
   try {
-    const { status, paymentGateway, branchId, customerId, page, limit } = req.query;
+    const { search, status, paymentGateway, branchId, customerId, page, limit } = req.query;
     
     const skip = page ? (parseInt(page as string) - 1) * parseInt(limit as string || '20') : 0;
     const take = limit ? parseInt(limit as string) : 20;
 
     const result = await orderService.getOrders({
+      search,
       status,
       paymentGateway,
       branchId,
@@ -125,6 +126,24 @@ export const refundOrder = async (req: Request, res: Response) => {
   }
 };
 
+export const refundPartialOrder = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { itemsToReturn, refundMethod } = req.body;
+    
+    if (!id) return res.status(400).json({ error: 'Order ID is required' });
+    if (!itemsToReturn || !Array.isArray(itemsToReturn) || itemsToReturn.length === 0) {
+      return res.status(400).json({ error: 'itemsToReturn array is required' });
+    }
+
+    const result = await orderService.refundPartialOrder(id as string, itemsToReturn, refundMethod);
+    res.json(result);
+  } catch (error: any) {
+    console.error(error);
+    res.status(400).json({ error: error.message || 'Failed to process partial refund' });
+  }
+};
+
 export const trackOrder = async (req: Request, res: Response) => {
   try {
     const { orderNumber, phone } = req.query;
@@ -139,37 +158,3 @@ export const trackOrder = async (req: Request, res: Response) => {
     res.status(404).json({ error: error.message || 'Order not found' });
   }
 };
-
-export const getOrderConfirmation = async (req: Request, res: Response) => {
-  try {
-    const { orderNumber } = req.params;
-    const { simulated } = req.query;
-    if (!orderNumber) {
-      return res.status(400).json({ error: 'Order number is required' });
-    }
-
-    let order = await orderService.getOrderByOrderNumber(orderNumber as string);
-    if (!order) {
-      return res.status(404).json({ error: 'Order not found' });
-    }
-
-    // In dev simulation mode, if order was simulated onepay, mark as PAID if UNPAID
-    if (simulated === 'true' && order.paymentStatus === 'UNPAID') {
-      const prisma = require('../config/prisma').default;
-      await prisma.order.update({
-        where: { id: order.id },
-        data: {
-          paymentStatus: 'PAID',
-          status: 'PROCESSING'
-        }
-      });
-      order = await orderService.getOrderByOrderNumber(orderNumber as string);
-    }
-
-    res.json(order);
-  } catch (error: any) {
-    console.error('[Order Confirmation Error]', error);
-    res.status(500).json({ error: error.message || 'Internal server error' });
-  }
-};
-

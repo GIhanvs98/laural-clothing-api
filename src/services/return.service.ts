@@ -277,5 +277,39 @@ export const returnService = {
     }
 
     return updated;
+  },
+
+  bulkUpdateReturnStatus: async (resolutions: Record<string, { condition: string; action: string }>) => {
+    const results = [];
+    for (const [id, resolution] of Object.entries(resolutions)) {
+      const returnRequest = await prisma.returnRequest.findUnique({
+        where: { id },
+        include: { items: true }
+      });
+      
+      if (!returnRequest) continue;
+      
+      let finalStatus = 'RECEIVED';
+      if (resolution.action === 'REJECT') finalStatus = 'REJECTED';
+      else if (resolution.action === 'APPROVE_STORE_CREDIT' || resolution.action === 'APPROVE_ORIGINAL') {
+        finalStatus = 'REFUNDED';
+      }
+
+      const itemsToUpdate = returnRequest.items.map(i => ({
+        id: i.id,
+        condition: resolution.condition,
+        inspectionStatus: resolution.condition
+      }));
+      
+      // Also update admin note
+      await prisma.returnRequest.update({
+        where: { id },
+        data: { adminNote: `Resolution: ${resolution.action}` }
+      });
+
+      const updated = await returnService.updateReturnStatus(id, finalStatus, itemsToUpdate);
+      results.push(updated);
+    }
+    return results;
   }
 };
