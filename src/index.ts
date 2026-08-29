@@ -80,7 +80,22 @@ app.use(helmet({
 }));
 app.use(compression());
 app.use(cors({
-  origin: process.env.FRONTEND_URL || "http://localhost:3000",
+  origin: function(origin, callback) {
+    if (!origin) return callback(null, true);
+    
+    const allowed = [
+      "http://localhost:3000",
+      "http://localhost:3001",
+      process.env.FRONTEND_URL,
+      process.env.ADMIN_URL
+    ].filter(Boolean);
+    
+    if (allowed.includes(origin) || origin.endsWith('.up.railway.app')) {
+      callback(null, true);
+    } else {
+      callback(null, false);
+    }
+  },
   credentials: true
 }));
 
