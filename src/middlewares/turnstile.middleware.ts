@@ -4,6 +4,11 @@ const VERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 
 export const verifyTurnstile = async (req: Request, res: Response, next: NextFunction) => {
   try {
+    // In development mode, bypass Turnstile verification
+    if (process.env.NODE_ENV !== 'production') {
+      return next();
+    }
+
     const token = req.body.turnstileToken;
 
     if (!token) {

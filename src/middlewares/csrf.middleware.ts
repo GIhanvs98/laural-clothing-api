@@ -17,19 +17,25 @@ const safeMethods = ['GET', 'HEAD', 'OPTIONS'];
 
 // Routes that expect external POSTs or custom header-authenticated requests without CSRF tokens
 const excludedRoutes = [
-  '/api/v1/payments/webhook',
+  '/api/v1/payments',
   '/api/v1/inventory/shipping/webhook',
   '/api/v1/cart',
   '/api/v1/checkout',
+  '/api/v1/orders',
   '/api/v1/wishlist',
   '/api/v1/addresses',
   '/api/v1/reviews',
   '/api/v1/auth',
+  '/api/v1/otp',
+  '/health'
 ];
 
 export const csrfMiddleware = (req: Request, res: Response, next: NextFunction) => {
-  // Check if the route is explicitly excluded from CSRF
-  if (excludedRoutes.some(route => req.originalUrl.startsWith(route))) {
+  // In development mode, or if the route is explicitly excluded from CSRF
+  if (
+    process.env.NODE_ENV !== 'production' ||
+    excludedRoutes.some(route => req.originalUrl?.startsWith(route) || req.path?.startsWith(route))
+  ) {
     return next();
   }
 
