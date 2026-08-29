@@ -15,10 +15,16 @@ const CSRF_HEADER_NAME = 'x-csrf-token';
 // Safe methods that do not modify state
 const safeMethods = ['GET', 'HEAD', 'OPTIONS'];
 
-// Routes that expect external POSTs without CSRF tokens (e.g. webhooks)
+// Routes that expect external POSTs or custom header-authenticated requests without CSRF tokens
 const excludedRoutes = [
   '/api/v1/payments/webhook',
-  '/api/v1/inventory/shipping/webhook'
+  '/api/v1/inventory/shipping/webhook',
+  '/api/v1/cart',
+  '/api/v1/checkout',
+  '/api/v1/wishlist',
+  '/api/v1/addresses',
+  '/api/v1/reviews',
+  '/api/v1/auth',
 ];
 
 export const csrfMiddleware = (req: Request, res: Response, next: NextFunction) => {
