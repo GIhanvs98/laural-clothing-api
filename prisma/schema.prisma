@@ -51,7 +51,7 @@ model Product {
   excerpt     String?
   status      String  @default("ACTIVE") // ACTIVE, DRAFT, ARCHIVED
 
-  style       String?
+  style String?
 
   categoryId String?
   category   Category? @relation(fields: [categoryId], references: [id])
@@ -256,8 +256,9 @@ model User {
   userRoles     UserRole[]
   refreshTokens RefreshToken[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  auditLogs AuditLog[]
 }
 
 model Role {
@@ -549,17 +550,17 @@ model Banner {
 }
 
 model HomepageSection {
-  id          String   @id @default(uuid())
+  id          String  @id @default(uuid())
   name        String
   description String?
-  visible     Boolean  @default(true)
-  order       Int      @default(0)
-  
-  type        String   @default("STATIC")
-  config      Json?
+  visible     Boolean @default(true)
+  order       Int     @default(0)
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  type   String @default("STATIC")
+  config Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model StaticPage {
@@ -574,8 +575,8 @@ model StaticPage {
   metaKeywords    String?
   ogImage         String?
 
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Coupon {
@@ -704,6 +705,7 @@ model Setting {
 model AuditLog {
   id        String  @id @default(uuid())
   userId    String?
+  user      User?   @relation(fields: [userId], references: [id])
   action    String // CREATE, UPDATE, DELETE, LOGIN, etc.
   entity    String // Product, Order, User, Role, etc.
   entityId  String? // ID of the modified record

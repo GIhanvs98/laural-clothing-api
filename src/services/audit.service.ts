@@ -33,13 +33,20 @@ export const auditService = {
         where,
         orderBy: { createdAt: 'desc' },
         skip,
-        take: limit
+        take: limit,
+        include: { user: { select: { name: true, email: true } } }
       }),
       prisma.auditLog.count({ where })
     ]);
     
+    // Map logs to return user name if available
+    const mappedLogs = logs.map(log => ({
+      ...log,
+      userName: log.user?.name || log.user?.email || 'System'
+    }));
+    
     return {
-      data: logs,
+      data: mappedLogs,
       meta: {
         total,
         page,
