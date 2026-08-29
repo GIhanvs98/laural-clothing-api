@@ -97,9 +97,12 @@ export const initiateCheckout = async (req: Request, res: Response) => {
       await redisClient.del(tokenKey);
     }
     
-    // Inject fingerprint for fraud scoring
+    // Inject fingerprint and loyalty points for fraud scoring and totals
     if (deviceFingerprint) {
       customer.deviceFingerprint = deviceFingerprint;
+    }
+    if (req.body.appliedLoyaltyPoints) {
+      customer.appliedLoyaltyPoints = Number(req.body.appliedLoyaltyPoints);
     }
 
     const order = await checkoutService.initiateCheckout(cartId, customer, shippingAddress, paymentMethod);
@@ -119,3 +122,33 @@ export const initiateCheckout = async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+export const getLoyaltyPoints = async (req: Request, res: Response) => {
+  try {
+    const { phone } = req.params;
+    if (!phone) {
+      return res.status(400).json({ error: 'Phone number is required' });
+    }
+
+    const prisma = require('../config/prisma').default;
+    const customer = await prisma.customer.findUnique({
+      where: { phone },
+      select: {
+        phone: true,
+        firstName: true,
+        lastName: true,
+        loyaltyPoints: true,
+      }
+    });
+
+    if (!customer) {
+      return res.json({ phone, loyaltyPoints: 0, firstName: '', lastName: '' });
+    }
+
+    res.json(customer);
+  } catch (error: any) {
+    console.error('[Loyalty Points Lookup]', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+};
+

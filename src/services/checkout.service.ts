@@ -102,16 +102,17 @@ export const checkoutService = {
 
     // 2. Calculation
     const totals = await this.calculateCheckout(cartId, shippingAddress, isGuest);
+    const appliedLoyaltyPoints = Math.max(0, Number((customerData as any).appliedLoyaltyPoints || 0));
+    const finalTotal = Math.max(0, totals.total - appliedLoyaltyPoints);
+    const loyaltyPointsEarned = Math.round(finalTotal * 0.01 * 100) / 100; // 1% loyalty points on order cost
 
     // 2.5 Evaluate Fraud Risk
-    // deviceFingerprint is not explicitly passed to initiateCheckout, so we'll optionally pass it.
-    // Wait, the signature of initiateCheckout doesn't have deviceFingerprint. Let's update the signature to accept it.
     const fraudEvaluation = await fraudService.evaluateCheckoutRisk(
       cart,
       customerData,
       shippingAddress,
-      totals,
-      customerData.deviceFingerprint // I will pass this from controller
+      { ...totals, total: finalTotal },
+      customerData.deviceFingerprint
     );
 
     if (fraudEvaluation.riskLevel === 'BLOCKED') {
@@ -132,7 +133,9 @@ export const checkoutService = {
         subtotal: totals.subtotal,
         shippingFee: totals.shippingFee,
         tax: totals.tax,
-        total: totals.total,
+        total: finalTotal,
+        loyaltyPointsEarned,
+        loyaltyPointsUsed: appliedLoyaltyPoints,
         shippingAddress: shippingAddress,
         fraudScore: fraudEvaluation.fraudScore,
         riskLevel: fraudEvaluation.riskLevel,
@@ -149,6 +152,20 @@ export const checkoutService = {
         items: true,
       },
     });
+
+    // Credit customer loyalty points (1% earned minus any points redeemed)
+    try {
+      await prisma.customer.update({
+        where: { id: customer.id },
+        data: {
+          loyaltyPoints: {
+            increment: loyaltyPointsEarned - appliedLoyaltyPoints,
+          },
+        },
+      });
+    } catch (lpErr) {
+      console.warn('[LoyaltyPoints] Failed to update customer points balance:', lpErr);
+    }
 
     if (fraudEvaluation.riskLevel === 'HIGH') {
       await alertService.sendFraudAlert(order.orderNumber, fraudEvaluation.fraudScore, fraudEvaluation.riskLevel, fraudEvaluation.fraudSignals, cartId);

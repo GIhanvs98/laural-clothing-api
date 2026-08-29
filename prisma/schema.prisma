@@ -327,6 +327,7 @@ model Customer {
   firstName String?
   lastName  String?
   isGuest   Boolean   @default(true)
+  loyaltyPoints Float   @default(0)
   
   addresses Address[]
   carts     Cart[]
@@ -404,6 +405,8 @@ model Order {
   shippingFee     Float
   tax             Float       @default(0)
   total           Float
+  loyaltyPointsEarned Float   @default(0)
+  loyaltyPointsUsed   Float   @default(0)
   
   shippingAddress Json?       // Optional for POS orders
   billingAddress  Json?
