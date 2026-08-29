@@ -72,10 +72,6 @@ export const createHeroSlide = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 };
-    console.error(error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-};
 
 export const updateHeroSlide = async (req: Request, res: Response) => {
   try {
@@ -86,10 +82,6 @@ export const updateHeroSlide = async (req: Request, res: Response) => {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors });
     }
-    console.error(error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-};
     console.error(error);
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -138,10 +130,6 @@ export const createBanner = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 };
-    console.error(error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-};
 
 export const updateBanner = async (req: Request, res: Response) => {
   try {
@@ -152,10 +140,6 @@ export const updateBanner = async (req: Request, res: Response) => {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors });
     }
-    console.error(error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-};
     console.error(error);
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -194,10 +178,6 @@ export const createHomepageSection = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 };
-    console.error(error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-};
 
 export const updateHomepageSection = async (req: Request, res: Response) => {
   try {
@@ -208,10 +188,6 @@ export const updateHomepageSection = async (req: Request, res: Response) => {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors });
     }
-    console.error(error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-};
     console.error(error);
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -263,10 +239,6 @@ export const createStaticPage = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 };
-    console.error(error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-};
 
 export const updateStaticPage = async (req: Request, res: Response) => {
   try {
@@ -277,10 +249,6 @@ export const updateStaticPage = async (req: Request, res: Response) => {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors });
     }
-    console.error(error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-};
     console.error(error);
     res.status(500).json({ error: 'Internal server error' });
   }

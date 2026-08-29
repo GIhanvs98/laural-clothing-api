@@ -22,13 +22,13 @@ export const categoryService = {
       });
 
       return Promise.all(categories.map(async (category) => {
-        let imageUrl = null;
+        let derivedImageUrl = category.imageUrl;
         const featuredImage = category.products?.[0]?.variants?.[0]?.featuredImage;
-        if (featuredImage) {
-          imageUrl = await signImageUrl(featuredImage);
+        if (!derivedImageUrl && featuredImage) {
+          derivedImageUrl = await signImageUrl(featuredImage);
         }
         const { products, ...rest } = category;
-        return { ...rest, imageUrl };
+        return { ...rest, imageUrl: derivedImageUrl };
       }));
     });
   },
@@ -42,13 +42,13 @@ export const categoryService = {
 
       if (!category) return null;
 
-      let imageUrl = null;
+      let derivedImageUrl = category.imageUrl;
       const featuredImage = category.products?.[0]?.variants?.[0]?.featuredImage;
-      if (featuredImage) {
-        imageUrl = await signImageUrl(featuredImage);
+      if (!derivedImageUrl && featuredImage) {
+        derivedImageUrl = await signImageUrl(featuredImage);
       }
       const { products, ...rest } = category;
-      return { ...rest, imageUrl };
+      return { ...rest, imageUrl: derivedImageUrl };
     });
   },
 

@@ -5,6 +5,7 @@ export const categoryWithPreviewSelect = {
   name: true,
   slug: true,
   description: true,
+  imageUrl: true,
   createdAt: true,
   updatedAt: true,
   _count: {
