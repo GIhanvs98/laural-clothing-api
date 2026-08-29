@@ -39,9 +39,6 @@ import settingRoutes from "./routes/setting.routes";
 import otpRoutes from "./routes/otp.routes";
 import { RoleService } from "./services/role.service";
 import { SettingService } from "./services/setting.service";
-import { createRequire } from 'module';
-
-const require = createRequire(import.meta.url);
 
 dotenv.config();
 

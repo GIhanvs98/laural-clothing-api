@@ -247,6 +247,8 @@ model User {
   posSessions   PosSession[]
   userRoles     UserRole[]
   refreshTokens RefreshToken[]
+  auditLogs     AuditLog[]
+  pushSubscriptions PushSubscription[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -681,6 +683,7 @@ model Setting {
 model AuditLog {
   id        String  @id @default(uuid())
   userId    String?
+  user      User?   @relation(fields: [userId], references: [id])
   action    String // CREATE, UPDATE, DELETE, LOGIN, etc.
   entity    String // Product, Order, User, Role, etc.
   entityId  String? // ID of the modified record
@@ -689,5 +692,15 @@ model AuditLog {
   ipAddress String?
   userAgent String?
 
+  createdAt DateTime @default(now())
+}
+
+model PushSubscription {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
   createdAt DateTime @default(now())
 }
