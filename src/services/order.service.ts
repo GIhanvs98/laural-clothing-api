@@ -227,7 +227,8 @@ export const orderService = {
         take,
         include: {
           customer: true,
-          branch: true
+          branch: true,
+          _count: { select: { items: true } }
         },
         orderBy: {
           createdAt: 'desc'
