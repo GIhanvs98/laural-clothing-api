@@ -38,6 +38,7 @@ import userRoutes from "./routes/user.routes";
 import settingRoutes from "./routes/setting.routes";
 import otpRoutes from "./routes/otp.routes";
 import auditRoutes from "./routes/audit.routes";
+import notificationRoutes from "./routes/notification.routes";
 import { RoleService } from "./services/role.service";
 import { SettingService } from "./services/setting.service";
 
@@ -52,9 +53,9 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"], // unsafe-inline often needed for basic apps, adjust if strict
+      scriptSrc: ["'self'", "'unsafe-inline'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "blob:", "https:"], // Allow images from https (our S3 proxy redirects to AWS)
+      imgSrc: ["'self'", "data:", "blob:", "https:"],
       connectSrc: ["'self'"],
       fontSrc: ["'self'", "https:", "data:"],
       objectSrc: ["'none'"],
@@ -63,21 +64,21 @@ app.use(helmet({
       upgradeInsecureRequests: [],
     },
   },
-  crossOriginEmbedderPolicy: false, // Can break images from S3 if true without proper CORS
+  crossOriginEmbedderPolicy: false,
   crossOriginOpenerPolicy: { policy: "same-origin" },
-  crossOriginResourcePolicy: { policy: "cross-origin" }, // Allows loading images cross-origin
+  crossOriginResourcePolicy: { policy: "cross-origin" },
   dnsPrefetchControl: { allow: false },
-  frameguard: { action: "deny" }, // Prevents clickjacking
-  hidePoweredBy: true, // Removes X-Powered-By header
+  frameguard: { action: "deny" },
+  hidePoweredBy: true,
   hsts: {
-    maxAge: 31536000, // 1 year
+    maxAge: 31536000,
     includeSubDomains: true,
     preload: true,
   },
   ieNoOpen: true,
   noSniff: true,
   referrerPolicy: { policy: "strict-origin-when-cross-origin" },
-  xssFilter: true, // Adds X-XSS-Protection
+  xssFilter: true,
 }));
 app.use(compression());
 const allowedOrigins = process.env.FRONTEND_URL 
@@ -89,7 +90,6 @@ const allowedOrigins = process.env.FRONTEND_URL
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
@@ -99,26 +99,24 @@ app.use(cors({
   credentials: true
 }));
 
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(cookieParser());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
-// Apply CSRF Protection to all routes
+app.use(sanitizeMiddleware);
+
+// Apply Emergency Kill Switch (Bypassed for Super Admins)
+app.use(emergencyKillSwitch);
+
+// Apply global rate limiting to all requests
+app.use(globalApiLimiter);
+
+// Require CSRF token for state-mutating requests
 app.use(csrfMiddleware);
 
-// Request logging middleware
-app.use((req: Request, res: Response, next: NextFunction) => {
-  logger.info(`${req.method} ${req.url}`);
-  next();
-});
+const API_PREFIX = '/api/v1';
 
-// API Routes
-const API_PREFIX = "/api/v1";
-
-app.use(API_PREFIX, globalApiLimiter);
-app.use(API_PREFIX, sanitizeMiddleware);
-app.use(API_PREFIX, emergencyKillSwitch);
-
+// Routes
 app.use(`${API_PREFIX}/auth`, authRoutes);
 app.use(`${API_PREFIX}/roles`, roleRoutes);
 app.use(`${API_PREFIX}/users`, userRoutes);
@@ -144,11 +142,13 @@ app.use(`${API_PREFIX}/addresses`, addressRoutes);
 app.use(`${API_PREFIX}/reports`, reportRoutes);
 app.use(`${API_PREFIX}/otp`, otpRoutes);
 app.use(`${API_PREFIX}/system/audit`, auditRoutes);
+app.use(`${API_PREFIX}/notifications`, notificationRoutes);
 
 // Health Check
 app.get("/health", (req: Request, res: Response) => {
   res.status(200).json({ status: "OK", timestamp: new Date() });
 });
+
 // 404 Route Not Found
 app.use((req: Request, res: Response, next: NextFunction) => {
   next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404));
@@ -174,4 +174,3 @@ app.listen(PORT as number, '0.0.0.0', async () => {
 });
 
 export default app;
-
