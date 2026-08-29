@@ -123,6 +123,19 @@ export class ProductController {
       res.status(400).json({ error: error.message || 'Bad Request' });
     }
   }
+
+  async bulkEditProducts(req: Request, res: Response) {
+    try {
+      const { productIds, data } = req.body;
+      if (!productIds || !Array.isArray(productIds)) {
+        return res.status(400).json({ error: 'productIds array is required' });
+      }
+      const result = await productService.bulkUpdateProducts(productIds, data || {});
+      res.status(200).json(result);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || 'Bad Request' });
+    }
+  }
 }
 
 export const productController = new ProductController();

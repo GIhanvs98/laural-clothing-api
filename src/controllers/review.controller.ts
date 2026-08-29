@@ -145,3 +145,18 @@ export const deleteReview = async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+export const addAdminReply = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { reply } = req.body;
+    if (!reply || typeof reply !== 'string') {
+      return res.status(400).json({ error: 'Reply content is required' });
+    }
+    const review = await reviewService.addAdminReply(id as string, reply);
+    res.json(review);
+  } catch (error: any) {
+    console.error(error);
+    res.status(500).json({ error: error.message });
+  }
+};

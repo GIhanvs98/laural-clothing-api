@@ -10,6 +10,7 @@ router.get('/filters/meta', productController.getFilterMetadata);
 router.get('/:id', productController.getProductById);
 router.get('/slug/:slug', productController.getProductBySlug);
 router.get('/sku/:sku', productController.getProductBySku);
+router.post('/bulk-edit', authenticateJWT, requirePermission("products:edit"), auditLog('Product', 'UPDATE_BULK'), productController.bulkEditProducts);
 router.post('/', authenticateJWT, requirePermission("products:create"), auditLog('Product', 'CREATE'), productController.createProduct);
 router.put('/:id', authenticateJWT, requirePermission("products:edit"), auditLog('Product', 'UPDATE'), productController.updateProduct);
 router.delete('/:id', authenticateJWT, requirePermission("products:delete"), auditLog('Product', 'DELETE'), productController.deleteProduct);

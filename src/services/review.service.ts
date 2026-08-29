@@ -202,7 +202,7 @@ export const reviewService = {
   /**
    * Admin fetches global review stats for KPI cards
    */
-  async getReviewStats(): Promise<{ pending: number; approved: number; rejected: number; averageRating: number }> {
+  async getReviewStats(): Promise<{ pending: number; approved: number; rejected: number; spam: number; averageRating: number }> {
     const counts = await prisma.review.groupBy({
       by: ['status'],
       _count: true
@@ -215,17 +215,20 @@ export const reviewService = {
     let pending = 0;
     let approved = 0;
     let rejected = 0;
+    let spam = 0;
 
     for (const c of counts) {
       if (c.status === 'PENDING') pending = c._count;
       else if (c.status === 'APPROVED') approved = c._count;
       else if (c.status === 'REJECTED') rejected = c._count;
+      else if (c.status === 'SPAM') spam = c._count;
     }
 
     return {
       pending,
       approved,
       rejected,
+      spam,
       averageRating: ratingAgg._avg.rating ? Number(ratingAgg._avg.rating.toFixed(1)) : 0
     };
   },
@@ -237,6 +240,19 @@ export const reviewService = {
     return prisma.review.update({
       where: { id },
       data: { status }
+    });
+  },
+
+  /**
+   * Admin adds a reply to a review
+   */
+  async addAdminReply(id: string, reply: string): Promise<Review> {
+    return prisma.review.update({
+      where: { id },
+      data: { 
+        adminReply: reply,
+        adminReplyAt: new Date()
+      }
     });
   },
 

@@ -9,7 +9,8 @@ import {
   exportReviewsCsv,
   updateReviewStatus,
   deleteReview,
-  getPublicReviews
+  getPublicReviews,
+  addAdminReply
 } from '../controllers/review.controller';
 import { authenticateJWT, requirePermission } from '../middlewares/auth.middleware';
 import { checkHoneypot } from '../middlewares/honeypot.middleware';
@@ -27,6 +28,7 @@ router.get('/stats', authenticateJWT, requirePermission("reviews:view"), getRevi
 router.get('/export', authenticateJWT, requirePermission("reviews:view"), exportReviewsCsv);
 router.get('/', authenticateJWT, requirePermission("reviews:view"), getAllReviews);
 router.patch('/:id/status', authenticateJWT, requirePermission("reviews:approve"), updateReviewStatus);
+router.post('/:id/reply', authenticateJWT, requirePermission("reviews:approve"), addAdminReply);
 router.delete('/:id', authenticateJWT, requirePermission("reviews:reject"), deleteReview);
 
 export default router;

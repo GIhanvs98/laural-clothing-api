@@ -299,6 +299,33 @@ export class ProductService {
     await invalidateCache('product*');
     return result;
   }
+
+  async bulkUpdateProducts(ids: string[], data: { status?: string; categoryId?: string; collectionId?: string }) {
+    const updateData: any = {};
+    if (data.status && data.status !== 'no_change') updateData.status = data.status;
+    if (data.categoryId && data.categoryId !== 'no_change') updateData.categoryId = data.categoryId;
+
+    if (Object.keys(updateData).length > 0) {
+      await prisma.product.updateMany({
+        where: { id: { in: ids } },
+        data: updateData,
+      });
+    }
+
+    if (data.collectionId && data.collectionId !== 'no_change') {
+      // For each product, upsert the collection relationship
+      for (const id of ids) {
+        await prisma.collectionProduct.upsert({
+          where: { collectionId_productId: { collectionId: data.collectionId, productId: id } },
+          update: {},
+          create: { collectionId: data.collectionId, productId: id },
+        });
+      }
+    }
+
+    await invalidateCache('product*');
+    return { success: true, count: ids.length };
+  }
 }
 
 export const productService = new ProductService();

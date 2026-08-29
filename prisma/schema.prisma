@@ -49,6 +49,7 @@ model Product {
   slug        String  @unique
   description String?
   excerpt     String?
+  status      String  @default("ACTIVE") // ACTIVE, DRAFT, ARCHIVED
 
   style       String?
 
@@ -635,6 +636,7 @@ enum ReviewStatus {
   PENDING
   APPROVED
   REJECTED
+  SPAM
 }
 
 model Review {
@@ -651,6 +653,9 @@ model Review {
   status  ReviewStatus @default(PENDING)
 
   isVerifiedPurchase Boolean @default(false)
+
+  adminReply   String?   @db.Text
+  adminReplyAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
