@@ -16,10 +16,20 @@ export const categoryService = {
 
       return Promise.all(categories.map(async (category) => {
         let imageUrl = null;
-        const featuredImage = category.products?.[0]?.variants?.[0]?.featuredImage;
-        if (featuredImage) {
-          imageUrl = await signImageUrl(featuredImage);
+        try {
+          const products = category.products || [];
+          const variants = products.length > 0 ? products[0].variants || [] : [];
+          const featuredImage = variants.length > 0 ? variants[0].featuredImage : null;
+          
+          if (featuredImage) {
+            imageUrl = await signImageUrl(featuredImage);
+          }
+        } catch (error) {
+          console.error(`Failed to sign image URL for category ${category.name}:`, error);
+          // Gracefully fallback to null instead of failing the entire API response
+          imageUrl = null;
         }
+        
         const { products, ...rest } = category;
         return { ...rest, imageUrl };
       }));
@@ -36,9 +46,17 @@ export const categoryService = {
       if (!category) return null;
 
       let imageUrl = null;
-      const featuredImage = category.products?.[0]?.variants?.[0]?.featuredImage;
-      if (featuredImage) {
-        imageUrl = await signImageUrl(featuredImage);
+      try {
+        const products = category.products || [];
+        const variants = products.length > 0 ? products[0].variants || [] : [];
+        const featuredImage = variants.length > 0 ? variants[0].featuredImage : null;
+        
+        if (featuredImage) {
+          imageUrl = await signImageUrl(featuredImage);
+        }
+      } catch (error) {
+        console.error(`Failed to sign image URL for category ${category.name}:`, error);
+        imageUrl = null;
       }
       const { products, ...rest } = category;
       return { ...rest, imageUrl };
