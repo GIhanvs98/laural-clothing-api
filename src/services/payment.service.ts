@@ -5,6 +5,24 @@ export const paymentService = {
     const order = await prisma.order.findUnique({ where: { id: orderId } });
     if (!order) throw new Error('Order not found');
 
+    const setting = await prisma.setting.findUnique({ where: { key: 'PAYMENT_METHODS' } });
+    let methods: any[] = [
+      { id: "cod", name: "Cash on delivery", type: "offline", active: true },
+      { id: "mintpay", name: "Mintpay", type: "bnpl", active: true, badge: "Pay Later" },
+      { id: "koko", name: "Koko: BNPL", type: "bnpl", active: true, badge: "Pay Later" },
+      { id: "payzy", name: "Payzy", type: "gateway", active: true },
+      { id: "onepay", name: "Bank Card / Bank Account", type: "gateway", active: true }
+    ];
+
+    if (setting && setting.value) {
+      try { methods = JSON.parse(setting.value); } catch (e) {}
+    }
+
+    const requestedMethod = methods.find(m => m.id.toLowerCase() === method.toLowerCase());
+    if (!requestedMethod || !requestedMethod.active) {
+      throw new Error(`Payment method ${method} is currently unavailable.`);
+    }
+
     if (method.toUpperCase() === 'COD') {
       return {
         success: true,

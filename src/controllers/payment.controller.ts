@@ -120,3 +120,33 @@ export const getPaymentKpis = async (req: Request, res: Response, next: NextFunc
     next(error);
   }
 };
+
+export const getPaymentMethods = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const setting = await prisma.setting.findUnique({
+      where: { key: 'PAYMENT_METHODS' }
+    });
+
+    if (setting && setting.value) {
+      try {
+        const methods = JSON.parse(setting.value);
+        return res.status(200).json({ success: true, data: methods });
+      } catch (e) {
+        console.error("Failed to parse PAYMENT_METHODS setting", e);
+      }
+    }
+
+    // Default fallback if setting doesn't exist or is invalid
+    const defaultMethods = [
+      { id: "cod", name: "Cash on delivery", type: "offline", active: true },
+      { id: "mintpay", name: "Mintpay", type: "bnpl", active: true, badge: "Pay Later" },
+      { id: "koko", name: "Koko: BNPL", type: "bnpl", active: true, badge: "Pay Later" },
+      { id: "payzy", name: "Payzy", type: "gateway", active: true },
+      { id: "onepay", name: "Bank Card / Bank Account", type: "gateway", active: true }
+    ];
+
+    res.status(200).json({ success: true, data: defaultMethods });
+  } catch (error) {
+    next(error);
+  }
+};
