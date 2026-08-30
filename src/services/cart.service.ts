@@ -2,8 +2,40 @@ import prisma from '../config/prisma';
 import { redisClient } from '../config/redis';
 import crypto from 'crypto';
 import { cartSelect, cartItemSelect } from '../dto/cart.dto';
+import { signImageUrl } from './product.service';
 
 const GUEST_CART_TTL = 7 * 24 * 60 * 60; // 7 days
+
+async function signCartImages(cart: any) {
+  if (!cart?.items) return cart;
+  
+  for (const item of cart.items) {
+    if (item.variant) {
+      if (item.variant.featuredImage) {
+        item.variant.featuredImage = await signImageUrl(item.variant.featuredImage);
+      }
+      if (item.variant.gallery && Array.isArray(item.variant.gallery)) {
+        item.variant.gallery = await Promise.all(
+          item.variant.gallery.map(async (url: string) => await signImageUrl(url))
+        );
+      }
+      
+      if (item.variant.product?.variants) {
+        for (const pv of item.variant.product.variants) {
+          if (pv.featuredImage) {
+            pv.featuredImage = await signImageUrl(pv.featuredImage);
+          }
+          if (pv.gallery && Array.isArray(pv.gallery)) {
+            pv.gallery = await Promise.all(
+              pv.gallery.map(async (url: string) => await signImageUrl(url))
+            );
+          }
+        }
+      }
+    }
+  }
+  return cart;
+}
 
 // Helper to get fully hydrated variant data for Redis cache
 async function getVariantWithProduct(variantId: string) {
@@ -31,7 +63,7 @@ export const cartService = {
           select: cartSelect,
         });
       }
-      return cart;
+      return signCartImages(cart);
     }
 
     if (sessionId) {
@@ -45,7 +77,7 @@ export const cartService = {
       }
       
       if (cartData) {
-        return JSON.parse(cartData);
+        return signCartImages(JSON.parse(cartData));
       }
 
       // Create new Redis Cart structure
@@ -62,7 +94,7 @@ export const cartService = {
       } catch (err) {
         console.error('Redis error saving guest cart:', err);
       }
-      return newCart;
+      return signCartImages(newCart);
     }
 
     throw new Error('Either sessionId or customerId must be provided');
