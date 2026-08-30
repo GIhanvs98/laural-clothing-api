@@ -96,32 +96,36 @@ export const analyticsService = {
       status: { notIn: ['CANCELLED', 'REFUNDED'] }
     };
 
-    // CURRENT PERIOD METRICS
-    const currentOrders = await prisma.order.findMany({
+    // CURRENT PERIOD METRICS (Aggregated at Database level)
+    const currentOrdersAgg = await prisma.order.aggregate({
       where: {
         ...orderBaseFilter,
         createdAt: { gte: current.start, lte: current.end }
-      }
+      },
+      _sum: { total: true },
+      _count: true
     });
 
-    const currentRevenue = currentOrders.reduce((sum, order) => sum + order.total, 0);
-    const currentOrderCount = currentOrders.length;
+    const currentRevenue = currentOrdersAgg._sum.total || 0;
+    const currentOrderCount = currentOrdersAgg._count || 0;
     const currentAvgOrderValue = currentOrderCount > 0 ? currentRevenue / currentOrderCount : 0;
 
     const currentNewCustomers = await prisma.customer.count({
       where: { createdAt: { gte: current.start, lte: current.end } }
     });
 
-    // PREVIOUS PERIOD METRICS
-    const previousOrders = await prisma.order.findMany({
+    // PREVIOUS PERIOD METRICS (Aggregated at Database level)
+    const previousOrdersAgg = await prisma.order.aggregate({
       where: {
         ...orderBaseFilter,
         createdAt: { gte: previous.start, lte: previous.end }
-      }
+      },
+      _sum: { total: true },
+      _count: true
     });
 
-    const previousRevenue = previousOrders.reduce((sum, order) => sum + order.total, 0);
-    const previousOrderCount = previousOrders.length;
+    const previousRevenue = previousOrdersAgg._sum.total || 0;
+    const previousOrderCount = previousOrdersAgg._count || 0;
     const previousAvgOrderValue = previousOrderCount > 0 ? previousRevenue / previousOrderCount : 0;
 
     const previousNewCustomers = await prisma.customer.count({
@@ -136,32 +140,45 @@ export const analyticsService = {
       }
     });
 
-    const variants = await prisma.productVariant.findMany({
-      select: { price: true, quantity: true }
-    });
-    const inventoryValue = variants.reduce((sum, variant) => sum + (variant.price * variant.quantity), 0);
+    // Inventory Value via Raw SQL for efficiency (price * quantity across all rows)
+    const inventoryResult = await prisma.$queryRaw<[{ total: number | null }]>`
+      SELECT SUM(price * quantity) as total FROM "ProductVariant"
+    `;
+    const inventoryValue = inventoryResult[0]?.total || 0;
 
-    const returnsOrders = await prisma.order.findMany({
+    const returnsAgg = await prisma.order.aggregate({
       where: {
         ...branchFilter,
         paymentStatus: 'REFUNDED',
         createdAt: { gte: current.start, lte: current.end }
-      }
+      },
+      _sum: { total: true }
     });
-    const returnsValue = returnsOrders.reduce((sum, order) => sum + order.total, 0);
+    const returnsValue = returnsAgg._sum.total || 0;
 
-    // PAYMENT GATEWAYS (CURRENT PERIOD)
+    // PAYMENT GATEWAYS (CURRENT PERIOD) via groupBy
+    const gatewayGroups = await prisma.order.groupBy({
+      by: ['paymentMethod'],
+      where: {
+        ...orderBaseFilter,
+        createdAt: { gte: current.start, lte: current.end }
+      },
+      _sum: { total: true },
+      _count: true
+    });
+
     const paymentGateways: Record<string, { count: number, total: number }> = {};
     let totalGatewayAmount = 0;
     
-    currentOrders.forEach(order => {
-      const method = order.paymentMethod || 'UNKNOWN';
+    gatewayGroups.forEach(group => {
+      const method = group.paymentMethod || 'UNKNOWN';
       if (!paymentGateways[method]) {
         paymentGateways[method] = { count: 0, total: 0 };
       }
-      paymentGateways[method].count += 1;
-      paymentGateways[method].total += order.total;
-      totalGatewayAmount += order.total;
+      paymentGateways[method].count += group._count;
+      const total = group._sum.total || 0;
+      paymentGateways[method].total += total;
+      totalGatewayAmount += total;
     });
 
     const paymentGatewayPerformance = Object.entries(paymentGateways)
