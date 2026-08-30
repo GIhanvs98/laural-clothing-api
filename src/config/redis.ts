@@ -11,7 +11,7 @@ export const redisClient = new Redis(redisUrl, {
   maxRetriesPerRequest: 3,
   connectTimeout: 10000,
   enableOfflineQueue: false, // Do not queue commands forever if Redis is down
-  tls: isProduction ? { rejectUnauthorized: false } : undefined, // Enable TLS in production
+  tls: redisUrl.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined,
   retryStrategy(times) {
     const delay = Math.min(times * 50, 2000);
     return delay;
