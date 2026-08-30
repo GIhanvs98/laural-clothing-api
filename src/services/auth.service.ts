@@ -140,6 +140,25 @@ export class AuthService {
       },
     });
 
+    // Also mirror this user to the Customer table for the Admin Dashboard
+    await prisma.customer.upsert({
+      where: { email },
+      update: {
+        firstName: displayName?.split(' ')[0] || "Unknown",
+        lastName: displayName?.split(' ').slice(1).join(' ') || "",
+        phone: input.phone || "0000000000",
+        isGuest: false,
+      },
+      create: {
+        email,
+        firstName: displayName?.split(' ')[0] || "Unknown",
+        lastName: displayName?.split(' ').slice(1).join(' ') || "",
+        phone: input.phone || "0000000000",
+        isGuest: false,
+        loyaltyTier: "Bronze",
+      }
+    });
+
     const { roles, permissions } = this.extractUserRolesAndPermissions(user);
 
     // Generate JWT Tokens

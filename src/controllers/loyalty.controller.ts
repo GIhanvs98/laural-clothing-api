@@ -64,7 +64,11 @@ export const getLoyaltyKpis = async (req: Request, res: Response, next: NextFunc
 
     const pointsIssued = result._sum.loyaltyPoints || 0;
     
-    // Hardcoded estimated conversion for outstanding liability, e.g., 10 points = 1 Rs
+    // Calculate points redeemed from PaymentTransactions or orders if applicable
+    // Since there's no pointsRedeemed field, we use 0 or a dynamic query later
+    const pointsRedeemed = 0; 
+    
+    // Estimated conversion for outstanding liability, e.g., 10 points = 1 Rs
     const estimatedLiability = Math.floor(pointsIssued / 10);
 
     res.status(200).json({
@@ -72,7 +76,7 @@ export const getLoyaltyKpis = async (req: Request, res: Response, next: NextFunc
       data: {
         totalMembers: totalMembers.toLocaleString(),
         pointsIssued: pointsIssued.toLocaleString(),
-        pointsRedeemed: "310,200", // Would require points ledger to calculate actual redemptions
+        pointsRedeemed: pointsRedeemed.toLocaleString(),
         outstandingLiability: `Rs. ${estimatedLiability.toLocaleString()}`
       }
     });
