@@ -11,7 +11,7 @@ const router = Router();
 router.post("/register", checkHoneypot, verifyTurnstile, registerRateLimiter, AuthController.register);
 router.post("/login", checkHoneypot, verifyTurnstile, loginRateLimiter, checkLoginLockout, AuthController.login);
 router.post("/refresh", AuthController.refresh);
-router.post("/logout", authenticateJWT, AuthController.logout);
+router.post("/logout", AuthController.logout);
 router.get("/me", authenticateJWT, AuthController.getMe);
 router.get("/csrf", AuthController.getCSRFToken);
 
