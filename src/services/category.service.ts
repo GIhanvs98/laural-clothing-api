@@ -18,8 +18,10 @@ export const categoryService = {
         let imageUrl = null;
         try {
           const products = category.products || [];
-          const variants = products.length > 0 ? products[0].variants || [] : [];
-          const featuredImage = variants.length > 0 ? variants[0].featuredImage : null;
+          const firstProduct = products[0];
+          const variants = firstProduct?.variants || [];
+          const firstVariant = variants[0];
+          const featuredImage = firstVariant?.featuredImage || null;
           
           if (featuredImage) {
             imageUrl = await signImageUrl(featuredImage);
@@ -48,8 +50,10 @@ export const categoryService = {
       let imageUrl = null;
       try {
         const products = category.products || [];
-        const variants = products.length > 0 ? products[0].variants || [] : [];
-        const featuredImage = variants.length > 0 ? variants[0].featuredImage : null;
+        const firstProduct = products[0];
+        const variants = firstProduct?.variants || [];
+        const firstVariant = variants[0];
+        const featuredImage = firstVariant?.featuredImage || null;
         
         if (featuredImage) {
           imageUrl = await signImageUrl(featuredImage);
