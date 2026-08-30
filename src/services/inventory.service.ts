@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import prisma from '../config/prisma';
 import { signImageUrl } from './product.service';
+import { NotificationService } from './notification.service';
 
 export const inventoryService = {
 
@@ -194,6 +195,25 @@ export const inventoryService = {
         reference,
       },
     });
+
+    if (inv.quantity > 0 && inv.quantity <= inv.lowStockThreshold && type === 'DEDUCT') {
+      try {
+        const variant = await prisma.productVariant.findUnique({
+          where: { id: variantId },
+          include: { product: true }
+        });
+        if (variant) {
+          await NotificationService.createInternal(
+            'Low Stock Alert',
+            `${variant.product.name} (SKU: ${variant.sku}) is running low on stock. Only ${inv.quantity} left.`,
+            'INVENTORY',
+            `/inventory`
+          );
+        }
+      } catch (e) {
+        console.error('Failed to trigger low stock notification:', e);
+      }
+    }
 
     return { inventoryItem: inv, transaction: tx };
   },

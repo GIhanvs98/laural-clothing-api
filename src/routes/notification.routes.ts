@@ -1,15 +1,16 @@
 import { Router } from 'express';
-import { NotificationController } from '../controllers/notification.controller';
-import { authenticateJWT, requirePermission } from '../middlewares/auth.middleware';
+import { getNotifications, markAsRead, markAllAsRead } from '../controllers/notification.controller';
+import { requireAuth } from '../middlewares/auth.middleware';
+import { requireRole } from '../middlewares/role.middleware';
 
 const router = Router();
 
-// Public routes for frontend clients
-router.post('/push/subscribe', authenticateJWT, NotificationController.subscribePush);
-router.get('/push/vapid-key', NotificationController.getVapidKey);
+// Only admin/manager can access these routes
+router.use(requireAuth);
+router.use(requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER']));
 
-// Protected Admin Routes
-router.post('/sms/bulk', authenticateJWT, requirePermission('manage_promotions'), NotificationController.sendBulkSms);
-router.post('/push/broadcast', authenticateJWT, requirePermission('manage_promotions'), NotificationController.broadcastPush);
+router.get('/', getNotifications);
+router.put('/read-all', markAllAsRead);
+router.put('/:id/read', markAsRead);
 
 export default router;

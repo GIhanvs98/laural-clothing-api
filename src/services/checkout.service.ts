@@ -4,6 +4,7 @@ import { inventoryService } from './inventory.service';
 import { paymentService } from './payment.service';
 import { fraudService } from './fraud.service';
 import { alertService } from './alert.service';
+import { NotificationService } from './notification.service';
 
 export const checkoutService = {
   /**
@@ -232,6 +233,18 @@ export const checkoutService = {
 
     // 5. Initiate Payment
     const paymentInfo = await paymentService.initiatePayment(order.id, paymentMethod || 'COD');
+
+    // 6. Trigger Notification
+    try {
+      await NotificationService.createInternal(
+        'New Order Received',
+        `Order #${order.orderNumber} has been placed for Rs. ${order.total}`,
+        'ORDER',
+        `/orders/${order.id}`
+      );
+    } catch (e) {
+      console.error('Failed to trigger notification:', e);
+    }
 
     return { order, payment: paymentInfo };
   },

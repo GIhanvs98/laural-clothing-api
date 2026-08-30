@@ -144,4 +144,45 @@ export class NotificationService {
   static getVapidPublicKey() {
     return vapidKeys.publicKey;
   }
+
+  // --- INTERNAL DASHBOARD NOTIFICATIONS ---
+
+  static async createInternal(title: string, message: string, type: string = 'INFO', link?: string) {
+    return prisma.notification.create({
+      data: {
+        title,
+        message,
+        type,
+        link,
+        isRead: false
+      }
+    });
+  }
+
+  static async getInternalNotifications(limit: number = 20) {
+    return prisma.notification.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+  }
+
+  static async getUnreadCount() {
+    return prisma.notification.count({
+      where: { isRead: false }
+    });
+  }
+
+  static async markAsRead(id: string) {
+    return prisma.notification.update({
+      where: { id },
+      data: { isRead: true }
+    });
+  }
+
+  static async markAllAsRead() {
+    return prisma.notification.updateMany({
+      where: { isRead: false },
+      data: { isRead: true }
+    });
+  }
 }

@@ -2,6 +2,7 @@ import prisma from '../config/prisma';
 import { FardarService } from './fardar.service';
 import { inventoryService } from './inventory.service';
 import { loyaltyService } from './loyalty.service';
+import { NotificationService } from './notification.service';
 
 export interface QuickDispatchPayload {
   customer: {
@@ -189,6 +190,18 @@ export const orderService = {
         }
       });
 
+      // Trigger Notification
+      try {
+        await NotificationService.createInternal(
+          'Manual Order Placed',
+          `Order #${order.orderNumber} created manually via POS for Rs. ${order.total}`,
+          'ORDER',
+          `/orders/${order.id}`
+        );
+      } catch (e) {
+        console.error('Failed to trigger notification:', e);
+      }
+
       return order;
     });
   },
@@ -313,6 +326,18 @@ export const orderService = {
       } catch (err) {
         console.error("Failed to credit loyalty points:", err);
       }
+    }
+
+    // Trigger Notification
+    try {
+      await NotificationService.createInternal(
+        'Order Status Updated',
+        `Order #${order.orderNumber} status changed to ${status}`,
+        'SYSTEM',
+        `/orders/${order.id}`
+      );
+    } catch (e) {
+      console.error('Failed to trigger notification:', e);
     }
 
     return order;
