@@ -8,8 +8,12 @@ export class ProductController {
       const take = req.query.take ? parseInt(req.query.take as string, 10) : undefined;
       const search = req.query.search as string | undefined;
       const category = req.query.category as string | undefined;
+      const color = req.query.color as string | undefined;
+      const size = req.query.size as string | undefined;
+      const minPrice = req.query.minPrice ? parseFloat(req.query.minPrice as string) : undefined;
+      const maxPrice = req.query.maxPrice ? parseFloat(req.query.maxPrice as string) : undefined;
 
-      const result = await productService.getAllProducts({ skip, take, search, category });
+      const result = await productService.getAllProducts({ skip, take, search, category, color, size, minPrice, maxPrice });
       res.status(200).json(result);
     } catch (error: any) {
       res.status(500).json({ error: error.message || 'Internal Server Error' });

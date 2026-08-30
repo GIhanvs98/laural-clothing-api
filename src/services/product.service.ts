@@ -70,9 +70,13 @@ export class ProductService {
     take?: number;
     search?: string;
     category?: string;
+    color?: string;
+    size?: string;
+    minPrice?: number;
+    maxPrice?: number;
   }) {
-    const { skip = 0, take = 50, search, category } = params;
-    const cacheKey = `products:all:skip:${skip}:take:${take}:search:${search || 'none'}:category:${category || 'none'}`;
+    const { skip = 0, take = 50, search, category, color, size, minPrice, maxPrice } = params;
+    const cacheKey = `products:all:skip:${skip}:take:${take}:search:${search || 'none'}:category:${category || 'none'}:color:${color || 'none'}:size:${size || 'none'}:minP:${minPrice || 'none'}:maxP:${maxPrice || 'none'}`;
 
     return withCache(cacheKey, 900, async () => {
       const where: Prisma.ProductWhereInput = {
@@ -88,6 +92,18 @@ export class ProductService {
         ...(category
           ? {
               category: { slug: category }
+            }
+          : {}),
+        ...((color || size || minPrice !== undefined || maxPrice !== undefined)
+          ? {
+              variants: {
+                some: {
+                  ...(color ? { color: { equals: color, mode: 'insensitive' } } : {}),
+                  ...(size ? { size: { equals: size, mode: 'insensitive' } } : {}),
+                  ...(minPrice !== undefined ? { price: { gte: minPrice } } : {}),
+                  ...(maxPrice !== undefined ? { price: { lte: maxPrice } } : {}),
+                }
+              }
             }
           : {}),
       };
