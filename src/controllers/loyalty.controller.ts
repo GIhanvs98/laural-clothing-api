@@ -1,8 +1,6 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../config/prisma';
 import { loyaltyService } from '../services/loyalty.service';
-
-const prisma = new PrismaClient();
 
 export const getMyLoyalty = async (req: Request, res: Response) => {
   try {

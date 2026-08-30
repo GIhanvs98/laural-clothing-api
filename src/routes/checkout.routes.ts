@@ -3,16 +3,16 @@ import { calculateCheckout, initiateCheckout } from '../controllers/checkout.con
 import { checkoutRateLimiter } from '../middlewares/rateLimiter.middleware';
 import { checkHoneypot } from '../middlewares/honeypot.middleware';
 import { verifyTurnstile } from '../middlewares/turnstile.middleware';
+import prisma from '../config/prisma';
 
 const router = Router();
 
 router.post('/calculate', checkHoneypot, checkoutRateLimiter, calculateCheckout);
 router.post('/initiate', checkHoneypot, verifyTurnstile, checkoutRateLimiter, initiateCheckout);
 router.get('/loyalty/:phone', checkoutRateLimiter, async (req, res) => {
-  const { phone } = req.params;
+  const phone = req.params.phone as string;
   try {
-    const { PrismaClient } = require('@prisma/client');
-    const prisma = new PrismaClient();
+
     const customer = await prisma.customer.findUnique({ where: { phone } });
     if (!customer) {
       return res.json({ loyaltyPoints: 0 });
