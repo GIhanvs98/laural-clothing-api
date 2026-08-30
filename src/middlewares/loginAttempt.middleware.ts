@@ -26,35 +26,40 @@ export const trackFailedLogin = async (ip: string, email: string) => {
   const attemptKey = `login:failures:${ip}`;
   const alertKey   = `login:alerted:${ip}`;
 
-  // Atomically increment + set expiry
-  const attempts = await redisClient.incr(attemptKey);
-  if (attempts === 1) {
-    await redisClient.expire(attemptKey, WINDOW_SECONDS);
-  }
-
-  logger.warn(`Failed login attempt`, { ip, email, attempts });
-
-  // Alert once per window when threshold is crossed
-  if (attempts === ALERT_THRESHOLD) {
-    const alreadyAlerted = await redisClient.get(alertKey);
-    if (!alreadyAlerted) {
-      await redisClient.setex(alertKey, WINDOW_SECONDS, '1');
-      await alertService.sendSecurityAlert(
-        'Brute-Force Detected',
-        `${attempts} failed login attempts in the last 5 minutes`,
-        ip,
-        { email, attempts, windowSeconds: WINDOW_SECONDS }
-      );
+  try {
+    // Atomically increment + set expiry
+    const attempts = await redisClient.incr(attemptKey);
+    if (attempts === 1) {
+      await redisClient.expire(attemptKey, WINDOW_SECONDS);
     }
-  }
 
-  // Hard lockout beyond threshold
-  if (attempts >= LOCKOUT_THRESHOLD) {
-    const lockKey = `login:locked:${ip}`;
-    await redisClient.setex(lockKey, LOCKOUT_SECONDS, '1');
-  }
+    logger.warn(`Failed login attempt`, { ip, email, attempts });
 
-  return attempts;
+    // Alert once per window when threshold is crossed
+    if (attempts === ALERT_THRESHOLD) {
+      const alreadyAlerted = await redisClient.get(alertKey);
+      if (!alreadyAlerted) {
+        await redisClient.setex(alertKey, WINDOW_SECONDS, '1');
+        await alertService.sendSecurityAlert(
+          'Brute-Force Detected',
+          `${attempts} failed login attempts in the last 5 minutes`,
+          ip,
+          { email, attempts, windowSeconds: WINDOW_SECONDS }
+        );
+      }
+    }
+
+    // Hard lockout beyond threshold
+    if (attempts >= LOCKOUT_THRESHOLD) {
+      const lockKey = `login:locked:${ip}`;
+      await redisClient.setex(lockKey, LOCKOUT_SECONDS, '1');
+    }
+
+    return attempts;
+  } catch (err) {
+    logger.error('Redis error during trackFailedLogin:', err);
+    return 1; // Gracefully degrade
+  }
 };
 
 /**
@@ -65,13 +70,17 @@ export const checkLoginLockout = async (req: Request, res: Response, next: NextF
   const ip      = getIp(req);
   const lockKey = `login:locked:${ip}`;
 
-  const locked = await redisClient.get(lockKey);
-  if (locked) {
-    logger.warn(`Login attempt from locked IP`, { ip });
-    return res.status(429).json({
-      success: false,
-      message: 'Too many failed login attempts. Please try again in 15 minutes.'
-    });
+  try {
+    const locked = await redisClient.get(lockKey);
+    if (locked) {
+      logger.warn(`Login attempt from locked IP`, { ip });
+      return res.status(429).json({
+        success: false,
+        message: 'Too many failed login attempts. Please try again in 15 minutes.'
+      });
+    }
+  } catch (err) {
+    logger.error('Redis error during checkLoginLockout:', err);
   }
 
   next();
