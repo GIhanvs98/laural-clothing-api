@@ -10,6 +10,7 @@ const isProduction = process.env.NODE_ENV === 'production';
 export const redisClient = new Redis(redisUrl, {
   maxRetriesPerRequest: 3,
   connectTimeout: 10000,
+  enableOfflineQueue: false, // Do not queue commands forever if Redis is down
   tls: isProduction ? { rejectUnauthorized: false } : undefined, // Enable TLS in production
   retryStrategy(times) {
     const delay = Math.min(times * 50, 2000);
