@@ -155,7 +155,6 @@ export class AuthService {
         lastName: displayName?.split(' ').slice(1).join(' ') || "",
         phone: input.phone || "0000000000",
         isGuest: false,
-        loyaltyTier: "Bronze",
       }
     });
 
