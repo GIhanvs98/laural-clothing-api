@@ -8,5 +8,21 @@ const router = Router();
 
 router.post('/calculate', checkHoneypot, checkoutRateLimiter, calculateCheckout);
 router.post('/initiate', checkHoneypot, verifyTurnstile, checkoutRateLimiter, initiateCheckout);
+router.get('/loyalty/:phone', checkoutRateLimiter, async (req, res) => {
+  const { phone } = req.params;
+  try {
+    const { PrismaClient } = require('@prisma/client');
+    const prisma = new PrismaClient();
+    const customer = await prisma.customer.findUnique({ where: { phone } });
+    if (!customer) {
+      return res.json({ loyaltyPoints: 0 });
+    }
+    const loyaltyAccount = await prisma.loyaltyAccount.findUnique({ where: { customerId: customer.id } });
+    res.json({ loyaltyPoints: loyaltyAccount?.points || 0 });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch loyalty points' });
+  }
+});
 
 export default router;

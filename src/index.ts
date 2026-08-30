@@ -138,6 +138,7 @@ app.use(`${API_PREFIX}/pos`, posRoutes);
 app.use(`${API_PREFIX}/cms`, cmsRoutes);
 app.use(`${API_PREFIX}/payments`, paymentRoutes);
 app.use(`${API_PREFIX}/promotions`, promotionRoutes);
+app.use(`${API_PREFIX}/loyalty`, loyaltyRoutes);
 app.use(`${API_PREFIX}/media`, mediaRoutes);
 app.use(`${API_PREFIX}/reviews`, reviewRoutes);
 app.use(`${API_PREFIX}/loyalty`, loyaltyRoutes);

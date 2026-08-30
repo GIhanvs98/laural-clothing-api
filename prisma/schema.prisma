@@ -351,8 +351,7 @@ model Customer {
   lastName  String?
   isGuest   Boolean @default(true)
 
-  loyaltyPoints Int    @default(0)
-  loyaltyTier   String @default("Bronze") // Bronze, Silver, Gold, Platinum
+  loyaltyAccount LoyaltyAccount?
 
   addresses      Address[]
   carts          Cart[]
@@ -431,10 +430,11 @@ model Order {
   paymentMethod String? // KOKO, MINTPAY, ONEPAY, PAYZY, COD, CASH, CARD
   paymentStatus String  @default("UNPAID") // UNPAID, PAID, FAILED, REFUNDED
 
-  subtotal    Float
-  shippingFee Float
-  tax         Float @default(0)
-  total       Float
+  subtotal        Float
+  shippingFee     Float
+  tax             Float @default(0)
+  loyaltyDiscount Float @default(0)
+  total           Float
 
   shippingAddress Json? // Optional for POS orders
   billingAddress  Json?
@@ -453,6 +453,7 @@ model Order {
   branch   Branch? @relation(fields: [branchId], references: [id])
 
   payments PaymentTransaction[]
+  loyaltyTransactions LoyaltyTransaction[]
 
   items          OrderItem[]
   returnRequests ReturnRequest[]
@@ -737,4 +738,32 @@ model PaymentTransaction {
 model IdempotencyKey {
   key       String   @id
   createdAt DateTime @default(now())
+}
+
+model LoyaltyAccount {
+  id             String               @id @default(uuid())
+  customerId     String               @unique
+  customer       Customer             @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  points         Int                  @default(0)
+  lifetimePoints Int                  @default(0)
+  tier           String               @default("Bronze") // Bronze, Silver, Gold, Platinum
+
+  transactions   LoyaltyTransaction[]
+
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+}
+
+model LoyaltyTransaction {
+  id             String         @id @default(uuid())
+  accountId      String
+  account        LoyaltyAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  
+  amount         Int
+  type           String         // EARNED, REDEEMED, REFUNDED, MIGRATED
+  reason         String?
+  orderId        String?
+  order          Order?         @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  createdAt      DateTime       @default(now())
 }

@@ -1,6 +1,7 @@
 import prisma from '../config/prisma';
 import { FardarService } from './fardar.service';
 import { inventoryService } from './inventory.service';
+import { loyaltyService } from './loyalty.service';
 
 export interface QuickDispatchPayload {
   customer: {
@@ -305,6 +306,14 @@ export const orderService = {
         items: true
       }
     });
+
+    if (status === 'DELIVERED') {
+      try {
+        await loyaltyService.creditPointsForOrder(order.id);
+      } catch (err) {
+        console.error("Failed to credit loyalty points:", err);
+      }
+    }
 
     return order;
   },

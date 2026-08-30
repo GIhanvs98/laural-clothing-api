@@ -48,6 +48,7 @@ export const checkoutService = {
       shippingFee,
       tax,
       total,
+      loyaltyDiscount: 0,
       itemCount: cart.items.length,
     };
   },
@@ -55,7 +56,7 @@ export const checkoutService = {
   /**
    * Initiates checkout, resolves identity, and creates an order.
    */
-  async initiateCheckout(cartId: string, customerData: { phone: string; email?: string; firstName?: string; lastName?: string; isGuest?: boolean; deviceFingerprint?: string }, shippingAddress: any, paymentMethod?: string) {
+  async initiateCheckout(cartId: string, customerData: { phone: string; email?: string; firstName?: string; lastName?: string; isGuest?: boolean; deviceFingerprint?: string }, shippingAddress: any, paymentMethod?: string, pointsToRedeem?: number) {
     const isGuest = customerData.isGuest !== false;
     let cart;
 
@@ -101,7 +102,29 @@ export const checkoutService = {
     }
 
     // 2. Calculation
-    const totals = await this.calculateCheckout(cartId, shippingAddress, isGuest);
+    let totals = await this.calculateCheckout(cartId, shippingAddress, isGuest);
+    
+    // Loyalty Points Logic
+    let loyaltyAccountToUpdate = null;
+    let loyaltyDiscount = 0;
+
+    if (pointsToRedeem && pointsToRedeem > 0 && !isGuest && customer) {
+      const loyaltyAccount = await prisma.loyaltyAccount.findUnique({ where: { customerId: customer.id } });
+      if (!loyaltyAccount || loyaltyAccount.points < pointsToRedeem) {
+        throw new Error('Insufficient loyalty points');
+      }
+
+      // Convert points to LKR (assume 1 point = 1 LKR for now, could be dynamic)
+      loyaltyDiscount = pointsToRedeem * 1;
+      
+      if (loyaltyDiscount > totals.total) {
+        loyaltyDiscount = totals.total; // Cannot discount more than the order total
+      }
+
+      totals.total = totals.total - loyaltyDiscount;
+      totals.loyaltyDiscount = loyaltyDiscount;
+      loyaltyAccountToUpdate = loyaltyAccount;
+    }
 
     // 2.5 Evaluate Fraud Risk
     // deviceFingerprint is not explicitly passed to initiateCheckout, so we'll optionally pass it.
@@ -132,6 +155,7 @@ export const checkoutService = {
         subtotal: totals.subtotal,
         shippingFee: totals.shippingFee,
         tax: totals.tax,
+        loyaltyDiscount: totals.loyaltyDiscount,
         total: totals.total,
         shippingAddress: shippingAddress,
         fraudScore: fraudEvaluation.fraudScore,
@@ -149,6 +173,25 @@ export const checkoutService = {
         items: true,
       },
     });
+
+    // 3.1 Deduct Loyalty Points
+    if (loyaltyAccountToUpdate && pointsToRedeem && pointsToRedeem > 0) {
+      await prisma.$transaction([
+        prisma.loyaltyTransaction.create({
+          data: {
+            accountId: loyaltyAccountToUpdate.id,
+            amount: -pointsToRedeem,
+            type: 'REDEEMED',
+            reason: `Order #${order.orderNumber}`,
+            orderId: order.id
+          }
+        }),
+        prisma.loyaltyAccount.update({
+          where: { id: loyaltyAccountToUpdate.id },
+          data: { points: { decrement: pointsToRedeem } }
+        })
+      ]);
+    }
 
     if (fraudEvaluation.riskLevel === 'HIGH') {
       await alertService.sendFraudAlert(order.orderNumber, fraudEvaluation.fraudScore, fraudEvaluation.riskLevel, fraudEvaluation.fraudSignals, cartId);

@@ -102,7 +102,8 @@ export const initiateCheckout = async (req: Request, res: Response) => {
       customer.deviceFingerprint = deviceFingerprint;
     }
 
-    const order = await checkoutService.initiateCheckout(cartId, customer, shippingAddress, paymentMethod);
+    const { pointsToRedeem } = req.body;
+    const order = await checkoutService.initiateCheckout(cartId, customer, shippingAddress, paymentMethod, pointsToRedeem);
 
     // ── Record order velocity AFTER successful placement ──────────────
     if (customer?.phone) {

@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import prisma from "../config/prisma";
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from "../utils/jwt";
 import { AppError } from "../middlewares/errorHandler";
+import { loyaltyService } from "./loyalty.service";
 
 export interface RegisterInput {
   email: string;
@@ -141,7 +142,7 @@ export class AuthService {
     });
 
     // Also mirror this user to the Customer table for the Admin Dashboard
-    await prisma.customer.upsert({
+    const customer = await prisma.customer.upsert({
       where: { email },
       update: {
         firstName: displayName?.split(' ')[0] || "Unknown",
@@ -157,6 +158,12 @@ export class AuthService {
         isGuest: false,
       }
     });
+
+    try {
+      await loyaltyService.migrateGuestOrders(customer.id, customer.email, customer.phone);
+    } catch (err) {
+      console.error("Failed to migrate guest orders for new user:", err);
+    }
 
     const { roles, permissions } = this.extractUserRolesAndPermissions(user);
 

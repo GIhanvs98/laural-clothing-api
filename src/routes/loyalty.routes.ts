@@ -1,9 +1,9 @@
-import express from "express";
-import { getLoyaltyMembers, getLoyaltyKpis } from "../controllers/loyalty.controller";
+import { Router } from 'express';
+import { getMyLoyalty } from '../controllers/loyalty.controller';
+import { authenticateJWT } from '../middlewares/auth.middleware';
 
-const router = express.Router();
+const router = Router();
 
-router.get("/members", getLoyaltyMembers);
-router.get("/kpis", getLoyaltyKpis);
+router.get('/me', authenticateJWT, getMyLoyalty);
 
 export default router;

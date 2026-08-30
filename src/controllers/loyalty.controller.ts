@@ -1,86 +1,70 @@
-import { Request, Response, NextFunction } from "express";
-import prisma from "../config/prisma";
+import { Request, Response } from 'express';
+import { PrismaClient } from '@prisma/client';
+import { loyaltyService } from '../services/loyalty.service';
 
-export const getLoyaltyMembers = async (req: Request, res: Response, next: NextFunction) => {
+const prisma = new PrismaClient();
+
+export const getMyLoyalty = async (req: Request, res: Response) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 10;
-    const search = req.query.search as string;
-
-    const skip = (page - 1) * limit;
-
-    let where: any = {};
-    if (search) {
-      where = {
-        OR: [
-          { firstName: { contains: search, mode: 'insensitive' } },
-          { lastName: { contains: search, mode: 'insensitive' } },
-          { phone: { contains: search } }
-        ]
-      };
+    // Assuming authMiddleware attaches userId to req.user
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const [members, total] = await Promise.all([
-      prisma.customer.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { loyaltyPoints: 'desc' }
-      }),
-      prisma.customer.count({ where })
-    ]);
+    // Since our system relies on Customer table for the Storefront, find the Customer associated with this User
+    // Our auth.service mirrors the user to Customer via email
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const mappedMembers = members.map((m: any) => ({
-      customer: `${m.firstName || ''} ${m.lastName || ''}`.trim() || (m.isGuest ? 'Guest User' : 'Unknown'),
-      phone: m.phone || 'N/A',
-      points: m.loyaltyPoints.toLocaleString(),
-      tier: m.loyaltyTier,
-      lastActivity: m.updatedAt.toLocaleDateString()
-    }));
+    const customer = await prisma.customer.findUnique({ where: { email: user.email } });
+    if (!customer) return res.status(404).json({ error: 'Customer profile not found' });
 
-    res.status(200).json({
-      success: true,
-      data: mappedMembers,
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit)
-      }
-    });
-  } catch (error) {
-    next(error);
-  }
-};
+    const account = await loyaltyService.ensureLoyaltyAccount(customer.id);
 
-export const getLoyaltyKpis = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const totalMembers = await prisma.customer.count();
-    const result = await prisma.customer.aggregate({
-      _sum: {
-        loyaltyPoints: true
-      }
+    const transactions = await prisma.loyaltyTransaction.findMany({
+      where: { accountId: account.id },
+      orderBy: { createdAt: 'desc' },
+      take: 20
     });
 
-    const pointsIssued = result._sum.loyaltyPoints || 0;
+    const rules = await loyaltyService.getLoyaltyRules();
     
-    // Calculate points redeemed from PaymentTransactions or orders if applicable
-    // Since there's no pointsRedeemed field, we use 0 or a dynamic query later
-    const pointsRedeemed = 0; 
+    // Calculate progress to next tier
+    const sortedTiers = rules.tiers.sort((a: any, b: any) => a.minPoints - b.minPoints);
+    let currentTierIndex = sortedTiers.findIndex((t: any) => t.name === account.tier);
+    if (currentTierIndex === -1) currentTierIndex = 0;
     
-    // Estimated conversion for outstanding liability, e.g., 10 points = 1 Rs
-    const estimatedLiability = Math.floor(pointsIssued / 10);
+    let nextTier = null;
+    let pointsNeeded = 0;
+    let progressPercentage = 100;
+    
+    if (currentTierIndex < sortedTiers.length - 1) {
+      nextTier = sortedTiers[currentTierIndex + 1];
+      const currentTierMin = sortedTiers[currentTierIndex].minPoints;
+      const nextTierMin = nextTier.minPoints;
+      
+      pointsNeeded = nextTierMin - account.lifetimePoints;
+      
+      // Calculate progress between the two tiers
+      const range = nextTierMin - currentTierMin;
+      const progress = account.lifetimePoints - currentTierMin;
+      progressPercentage = Math.min(100, Math.max(0, (progress / range) * 100));
+    }
 
-    res.status(200).json({
-      success: true,
-      data: {
-        totalMembers: totalMembers.toLocaleString(),
-        pointsIssued: pointsIssued.toLocaleString(),
-        pointsRedeemed: pointsRedeemed.toLocaleString(),
-        outstandingLiability: `Rs. ${estimatedLiability.toLocaleString()}`
+    res.json({
+      account,
+      transactions,
+      tierProgress: {
+        currentTier: account.tier,
+        nextTier: nextTier ? nextTier.name : null,
+        pointsNeeded,
+        progressPercentage,
+        nextTierMinPoints: nextTier ? nextTier.minPoints : null
       }
     });
-  } catch (error) {
-    next(error);
+  } catch (error: any) {
+    console.error(error);
+    res.status(500).json({ error: error.message || 'Failed to fetch loyalty profile' });
   }
 };
