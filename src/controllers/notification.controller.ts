@@ -16,7 +16,7 @@ export const getNotifications = async (req: Request, res: Response) => {
 
 export const markAsRead = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const notification = await NotificationService.markAsRead(id);
     res.json(notification);
   } catch (error) {

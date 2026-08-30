@@ -148,7 +148,7 @@ export class NotificationService {
   // --- INTERNAL DASHBOARD NOTIFICATIONS ---
 
   static async createInternal(title: string, message: string, type: string = 'INFO', link?: string) {
-    return prisma.notification.create({
+    return (prisma as any).notification.create({
       data: {
         title,
         message,
@@ -160,27 +160,27 @@ export class NotificationService {
   }
 
   static async getInternalNotifications(limit: number = 20) {
-    return prisma.notification.findMany({
+    return (prisma as any).notification.findMany({
       orderBy: { createdAt: 'desc' },
       take: limit,
     });
   }
 
   static async getUnreadCount() {
-    return prisma.notification.count({
+    return (prisma as any).notification.count({
       where: { isRead: false }
     });
   }
 
   static async markAsRead(id: string) {
-    return prisma.notification.update({
+    return (prisma as any).notification.update({
       where: { id },
       data: { isRead: true }
     });
   }
 
   static async markAllAsRead() {
-    return prisma.notification.updateMany({
+    return (prisma as any).notification.updateMany({
       where: { isRead: false },
       data: { isRead: true }
     });
