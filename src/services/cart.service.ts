@@ -37,7 +37,12 @@ export const cartService = {
     if (sessionId) {
       // Guest Cart -> Redis
       const redisKey = `cart:${sessionId}`;
-      const cartData = await redisClient.get(redisKey);
+      let cartData = null;
+      try {
+        cartData = await redisClient.get(redisKey);
+      } catch (err) {
+        console.error('Redis error fetching guest cart:', err);
+      }
       
       if (cartData) {
         return JSON.parse(cartData);
@@ -51,7 +56,12 @@ export const cartService = {
         items: [],
         createdAt: new Date().toISOString(),
       };
-      await redisClient.setex(redisKey, GUEST_CART_TTL, JSON.stringify(newCart));
+      
+      try {
+        await redisClient.setex(redisKey, GUEST_CART_TTL, JSON.stringify(newCart));
+      } catch (err) {
+        console.error('Redis error saving guest cart:', err);
+      }
       return newCart;
     }
 
