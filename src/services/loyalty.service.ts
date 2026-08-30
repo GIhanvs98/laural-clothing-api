@@ -34,12 +34,12 @@ export const loyaltyService = {
   },
 
   ensureLoyaltyAccount: async (customerId: string) => {
-    let account = await prisma.loyaltyAccount.findUnique({
+    let account = await (prisma as any).loyaltyAccount.findUnique({
       where: { customerId }
     });
 
     if (!account) {
-      account = await prisma.loyaltyAccount.create({
+      account = await (prisma as any).loyaltyAccount.create({
         data: { customerId }
       });
     }
@@ -55,7 +55,7 @@ export const loyaltyService = {
     if (!order || !order.customerId) return;
 
     // Check if points already credited for this order
-    const existingTx = await prisma.loyaltyTransaction.findFirst({
+    const existingTx = await (prisma as any).loyaltyTransaction.findFirst({
       where: { orderId, type: 'EARNED' }
     });
 
@@ -71,7 +71,7 @@ export const loyaltyService = {
     const newTier = loyaltyService.calculateTier(newLifetimePoints, rules.tiers);
 
     await prisma.$transaction([
-      prisma.loyaltyTransaction.create({
+      (prisma as any).loyaltyTransaction.create({
         data: {
           accountId: account.id,
           amount: pointsToEarn,
@@ -80,7 +80,7 @@ export const loyaltyService = {
           orderId: order.id
         }
       }),
-      prisma.loyaltyAccount.update({
+      (prisma as any).loyaltyAccount.update({
         where: { id: account.id },
         data: {
           points: { increment: pointsToEarn },
@@ -117,7 +117,7 @@ export const loyaltyService = {
       if (gc.id === customerId) continue;
 
       for (const order of gc.orders) {
-        const existingTx = await prisma.loyaltyTransaction.findFirst({
+        const existingTx = await (prisma as any).loyaltyTransaction.findFirst({
           where: { orderId: order.id }
         });
 
@@ -125,7 +125,7 @@ export const loyaltyService = {
           const points = Math.floor(order.subtotal * rules.earnRate);
           totalPointsToMigrate += points;
           
-          await prisma.loyaltyTransaction.create({
+          await (prisma as any).loyaltyTransaction.create({
             data: {
               accountId: account.id,
               amount: points,
@@ -142,7 +142,7 @@ export const loyaltyService = {
       const newLifetimePoints = account.lifetimePoints + totalPointsToMigrate;
       const newTier = loyaltyService.calculateTier(newLifetimePoints, rules.tiers);
 
-      await prisma.loyaltyAccount.update({
+      await (prisma as any).loyaltyAccount.update({
         where: { id: account.id },
         data: {
           points: { increment: totalPointsToMigrate },
@@ -151,5 +151,75 @@ export const loyaltyService = {
         }
       });
     }
+  },
+
+  getMembers: async (search: string = '', page: number = 1, limit: number = 10) => {
+    const skip = (page - 1) * limit;
+
+    const where: any = {};
+    if (search) {
+      where.customer = {
+        OR: [
+          { firstName: { contains: search, mode: 'insensitive' } },
+          { lastName: { contains: search, mode: 'insensitive' } },
+          { phone: { contains: search, mode: 'insensitive' } },
+          { email: { contains: search, mode: 'insensitive' } },
+        ]
+      };
+    }
+
+    const [accounts, total] = await Promise.all([
+      (prisma as any).loyaltyAccount.findMany({
+        where,
+        include: { customer: true },
+        skip,
+        take: limit,
+        orderBy: { lifetimePoints: 'desc' }
+      }),
+      (prisma as any).loyaltyAccount.count({ where })
+    ]);
+
+    const data = accounts.map((account: any) => ({
+      id: account.id,
+      customer: `${account.customer.firstName} ${account.customer.lastName || ''}`.trim() || 'Unknown',
+      phone: account.customer.phone || account.customer.email || 'N/A',
+      points: account.points.toString(),
+      tier: account.tier,
+      lastActivity: account.updatedAt.toISOString().split('T')[0]
+    }));
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      }
+    };
+  },
+
+  getKpis: async () => {
+    const totalMembers = await (prisma as any).loyaltyAccount.count();
+    
+    // Aggregates for points
+    const accounts = await (prisma as any).loyaltyAccount.aggregate({
+      _sum: {
+        lifetimePoints: true, // points issued over lifetime
+        points: true // current outstanding liability
+      }
+    });
+
+    const pointsIssued = accounts._sum.lifetimePoints || 0;
+    const outstandingLiability = accounts._sum.points || 0;
+    
+    const redeemed = pointsIssued - outstandingLiability;
+
+    return {
+      totalMembers: totalMembers.toString(),
+      pointsIssued: pointsIssued.toString(),
+      pointsRedeemed: redeemed.toString(),
+      outstandingLiability: `Rs. ${outstandingLiability}` // 1 point = 1 Rs by default rules
+    };
   }
 };

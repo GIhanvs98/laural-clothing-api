@@ -20,7 +20,7 @@ export const getMyLoyalty = async (req: Request, res: Response) => {
 
     const account = await loyaltyService.ensureLoyaltyAccount(customer.id);
 
-    const transactions = await prisma.loyaltyTransaction.findMany({
+    const transactions = await (prisma as any).loyaltyTransaction.findMany({
       where: { accountId: account.id },
       orderBy: { createdAt: 'desc' },
       take: 20
@@ -64,5 +64,29 @@ export const getMyLoyalty = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error(error);
     res.status(500).json({ error: error.message || 'Failed to fetch loyalty profile' });
+  }
+};
+
+export const getLoyaltyMembers = async (req: Request, res: Response) => {
+  try {
+    const search = req.query.search as string || '';
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    
+    const result = await loyaltyService.getMembers(search, page, limit);
+    res.json(result);
+  } catch (error: any) {
+    console.error(error);
+    res.status(500).json({ error: error.message || 'Failed to fetch loyalty members' });
+  }
+};
+
+export const getLoyaltyKpis = async (req: Request, res: Response) => {
+  try {
+    const kpis = await loyaltyService.getKpis();
+    res.json({ data: kpis });
+  } catch (error: any) {
+    console.error(error);
+    res.status(500).json({ error: error.message || 'Failed to fetch loyalty KPIs' });
   }
 };
