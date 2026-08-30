@@ -1,14 +1,80 @@
 import { Request, Response, NextFunction } from "express";
 import { AppError } from "../middlewares/errorHandler";
-import { logger } from "../utils/logger";
+import prisma from "../config/prisma";
 
 export const getCustomers = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // TODO: Fetch customers from Prisma
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const search = req.query.search as string;
+    const type = req.query.type as string; // 'Registered', 'Guest'
+    const sort = req.query.sort as string;
+
+    const skip = (page - 1) * limit;
+
+    let where: any = {};
+    if (search) {
+      where = {
+        OR: [
+          { firstName: { contains: search, mode: 'insensitive' } },
+          { lastName: { contains: search, mode: 'insensitive' } },
+          { email: { contains: search, mode: 'insensitive' } },
+          { phone: { contains: search } }
+        ]
+      };
+    }
+    
+    if (type === "Registered") {
+      where.isGuest = false;
+    } else if (type === "Guest") {
+      where.isGuest = true;
+    }
+
+    let orderBy: any = { createdAt: 'desc' };
+    if (sort === "Sort By: Highest Spend") {
+      orderBy = { orders: { _count: 'desc' } }; // Simplified, actual spend logic would require aggregation
+    } else if (sort === "Sort By: Most Orders") {
+      orderBy = { orders: { _count: 'desc' } };
+    }
+
+    const [customers, total] = await Promise.all([
+      prisma.customer.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy,
+        include: {
+          orders: { select: { total: true } }
+        }
+      }),
+      prisma.customer.count({ where })
+    ]);
+
+    const mappedCustomers = customers.map((c: any) => {
+      const ordersCount = c.orders.length;
+      const spent = c.orders.reduce((acc: number, o: any) => acc + o.total, 0);
+      
+      return {
+        id: c.id,
+        name: `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'Unknown',
+        phone: c.phone || 'N/A',
+        email: c.email || 'N/A',
+        type: c.isGuest ? 'Guest' : 'Registered',
+        orders: ordersCount,
+        spent: `Rs. ${spent.toLocaleString()}`,
+        lastActive: c.updatedAt.toLocaleDateString()
+      };
+    });
+
     res.status(200).json({
       success: true,
-      data: [],
-      message: "Customers fetched successfully (Mock)"
+      data: mappedCustomers,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      }
     });
   } catch (error) {
     next(error);
@@ -17,13 +83,11 @@ export const getCustomers = async (req: Request, res: Response, next: NextFuncti
 
 export const getCustomerById = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
-    // TODO: Fetch single customer from Prisma
-    res.status(200).json({
-      success: true,
-      data: { id },
-      message: "Customer fetched successfully (Mock)"
-    });
+    const id = req.params.id as string;
+    const customer = await prisma.customer.findUnique({ where: { id } });
+    if (!customer) throw new AppError("Customer not found", 404);
+    
+    res.status(200).json({ success: true, data: customer });
   } catch (error) {
     next(error);
   }
@@ -31,12 +95,8 @@ export const getCustomerById = async (req: Request, res: Response, next: NextFun
 
 export const createCustomer = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // TODO: Validate req.body and create customer via Prisma
-    res.status(201).json({
-      success: true,
-      data: req.body,
-      message: "Customer created successfully (Mock)"
-    });
+    const customer = await prisma.customer.create({ data: req.body });
+    res.status(201).json({ success: true, data: customer });
   } catch (error) {
     next(error);
   }
@@ -44,13 +104,9 @@ export const createCustomer = async (req: Request, res: Response, next: NextFunc
 
 export const updateCustomer = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
-    // TODO: Update customer via Prisma
-    res.status(200).json({
-      success: true,
-      data: { id, ...req.body },
-      message: "Customer updated successfully (Mock)"
-    });
+    const id = req.params.id as string;
+    const customer = await prisma.customer.update({ where: { id }, data: req.body });
+    res.status(200).json({ success: true, data: customer });
   } catch (error) {
     next(error);
   }

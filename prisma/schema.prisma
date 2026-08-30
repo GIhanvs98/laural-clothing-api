@@ -241,13 +241,13 @@ model User {
   phone    String?
   status   String    @default("ACTIVE") // ACTIVE, SUSPENDED, PENDING
 
-  branchId      String?
-  branch        Branch?        @relation("BranchStaff", fields: [branchId], references: [id])
-  managedBranch Branch?        @relation("BranchManager")
-  posSessions   PosSession[]
-  userRoles     UserRole[]
-  refreshTokens RefreshToken[]
-  auditLogs     AuditLog[]
+  branchId          String?
+  branch            Branch?            @relation("BranchStaff", fields: [branchId], references: [id])
+  managedBranch     Branch?            @relation("BranchManager")
+  posSessions       PosSession[]
+  userRoles         UserRole[]
+  refreshTokens     RefreshToken[]
+  auditLogs         AuditLog[]
   pushSubscriptions PushSubscription[]
 
   createdAt DateTime @default(now())
@@ -351,9 +351,13 @@ model Customer {
   lastName  String?
   isGuest   Boolean @default(true)
 
+  loyaltyPoints Int    @default(0)
+  loyaltyTier   String @default("Bronze") // Bronze, Silver, Gold, Platinum
+
   addresses      Address[]
   carts          Cart[]
   orders         Order[]
+  payments       PaymentTransaction[]
   reviews        Review[]
   returnRequests ReturnRequest[]
   wishlist       Wishlist?
@@ -447,6 +451,8 @@ model Order {
 
   branchId String?
   branch   Branch? @relation(fields: [branchId], references: [id])
+
+  payments PaymentTransaction[]
 
   items          OrderItem[]
   returnRequests ReturnRequest[]
@@ -636,8 +642,8 @@ model Review {
 
   isVerifiedPurchase Boolean @default(false)
 
-  adminReply  String?  @db.Text
-  spamFlagged Boolean  @default(false)
+  adminReply  String? @db.Text
+  spamFlagged Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -706,4 +712,24 @@ model PushSubscription {
   p256dh    String
   auth      String
   createdAt DateTime @default(now())
+}
+
+model PaymentTransaction {
+  id      String @id @default(uuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  gateway String // Koko, Mintpay, OnePay, Payzy, COD
+  method  String // Installment, Card, Cash
+  amount  Float
+  status  String // Paid, Pending, Failed, Refunded
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([customerId])
 }
