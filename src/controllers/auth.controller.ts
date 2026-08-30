@@ -95,9 +95,13 @@ export class AuthController {
       const result = await AuthService.loginUser({ email, password, fingerprint });
 
       // Clear failure counters on successful login
-      await redisClient.del(`login:failures:${ip}`);
-      await redisClient.del(`login:locked:${ip}`);
-      await redisClient.del(`login:alerted:${ip}`);
+      try {
+        await redisClient.del(`login:failures:${ip}`);
+        await redisClient.del(`login:locked:${ip}`);
+        await redisClient.del(`login:alerted:${ip}`);
+      } catch (err) {
+        logger.warn('Failed to clear Redis login counters', { error: err });
+      }
       logger.info('Successful login', { email, ip });
 
       setTokenCookies(res, result.accessToken, result.refreshToken);
