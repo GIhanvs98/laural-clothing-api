@@ -32,10 +32,13 @@ export const csrfMiddleware = (req: Request, res: Response, next: NextFunction) 
   
   if (!csrfCookie) {
     csrfCookie = crypto.randomBytes(32).toString('hex');
+    // IMPORTANT: httpOnly must be FALSE for the double-submit cookie pattern.
+    // The frontend JS needs to READ this cookie to attach it as x-csrf-token header.
+    // CSRF protection comes from sameSite:'strict' + the header check — NOT from httpOnly.
     res.cookie(CSRF_COOKIE_NAME, csrfCookie, {
-      httpOnly: true,
+      httpOnly: false,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict', // Essential for CSRF protection
+      sameSite: 'strict',
       maxAge: 24 * 60 * 60 * 1000 // 24 hours
     });
   }
