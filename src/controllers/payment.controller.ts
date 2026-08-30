@@ -4,8 +4,31 @@ import prisma from "../config/prisma";
 export const handleWebhook = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { provider } = req.params;
-    // Mock webhook handler for now
-    res.status(200).send("Webhook received");
+    const signature = req.headers['x-webhook-signature'] as string | undefined;
+    
+    const { paymentService } = require('../services/payment.service');
+    const result = await paymentService.handleWebhook(provider, req.body, signature);
+    
+    res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const retryPayment = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const orderNumber = req.params.orderNumber as string;
+    const { paymentMethod } = req.body;
+
+    const order = await prisma.order.findUnique({ where: { orderNumber } });
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    const { paymentService } = require('../services/payment.service');
+    const paymentInfo = await paymentService.initiatePayment(order.id, paymentMethod);
+
+    res.status(200).json({ success: true, payment: paymentInfo });
   } catch (error) {
     next(error);
   }
