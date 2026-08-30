@@ -174,6 +174,27 @@ export class ProductService {
     await invalidateCache('product*');
     return result;
   }
+
+  async getFilters() {
+    return withCache('product_filters', 3600, async () => {
+      const colors = await prisma.productVariant.findMany({
+        where: { color: { not: null } },
+        select: { color: true },
+        distinct: ['color'],
+      });
+
+      const sizes = await prisma.productVariant.findMany({
+        where: { size: { not: null } },
+        select: { size: true },
+        distinct: ['size'],
+      });
+
+      return {
+        colors: colors.map((c) => c.color).filter(Boolean) as string[],
+        sizes: sizes.map((s) => s.size).filter(Boolean) as string[],
+      };
+    });
+  }
 }
 
 export const productService = new ProductService();

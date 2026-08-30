@@ -1,4 +1,5 @@
 import prisma from '../config/prisma';
+import { signImageUrl } from './product.service';
 
 export const wishlistService = {
   getWishlist: async (sessionId?: string, customerId?: string) => {
@@ -45,6 +46,32 @@ export const wishlistService = {
           }
         },
       });
+    }
+
+    if (wishlist?.items) {
+      wishlist.items = await Promise.all(wishlist.items.map(async (item) => {
+        if (item.product?.variants) {
+          item.product.variants = await Promise.all(item.product.variants.map(async (variant) => {
+            let featuredImage = variant.featuredImage;
+            let gallery = variant.gallery;
+            
+            if (featuredImage) {
+              featuredImage = await signImageUrl(featuredImage);
+            }
+            if (gallery && Array.isArray(gallery)) {
+              const signedUrls = await Promise.all(gallery.map(async (img: string) => await signImageUrl(img)));
+              gallery = signedUrls.filter((url): url is string => url !== null);
+            }
+            
+            return {
+              ...variant,
+              featuredImage,
+              gallery
+            };
+          }));
+        }
+        return item;
+      }));
     }
 
     return wishlist;

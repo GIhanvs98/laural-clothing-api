@@ -16,6 +16,15 @@ export class ProductController {
     }
   }
 
+  async getFilters(req: Request, res: Response) {
+    try {
+      const filters = await productService.getFilters();
+      res.status(200).json(filters);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Internal Server Error' });
+    }
+  }
+
   async getProductById(req: Request, res: Response) {
     try {
       const { id } = req.params;

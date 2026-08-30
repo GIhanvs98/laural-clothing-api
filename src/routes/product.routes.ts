@@ -6,6 +6,7 @@ import { auditLog } from '../middlewares/audit.middleware';
 const router = Router();
 
 router.get('/', productController.getAllProducts);
+router.get('/filters', productController.getFilters);
 router.get('/:id', productController.getProductById);
 router.get('/slug/:slug', productController.getProductBySlug);
 router.get('/sku/:sku', productController.getProductBySku);
