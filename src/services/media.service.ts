@@ -128,12 +128,12 @@ export const mediaService = {
     let addedCount = 0;
 
     do {
-      const command = new ListObjectsV2Command({
+      const command: any = new ListObjectsV2Command({
         Bucket: BUCKET_NAME,
         ContinuationToken: continuationToken,
       });
 
-      const response = await s3Client.send(command);
+      const response: any = await s3Client.send(command);
 
       if (response.Contents) {
         for (const item of response.Contents) {
