@@ -554,6 +554,8 @@ model HomepageSection {
   id          String   @id @default(uuid())
   name        String
   description String?
+  type        String   @default("STATIC")
+  config      Json?
   visible     Boolean  @default(true)
   order       Int      @default(0)
   createdAt   DateTime @default(now())
