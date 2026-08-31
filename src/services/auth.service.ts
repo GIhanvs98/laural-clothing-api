@@ -225,6 +225,9 @@ export class AuthService {
             },
           },
         },
+        branch: {
+          select: { id: true, name: true, code: true },
+        },
       },
     });
 
@@ -283,6 +286,7 @@ export class AuthService {
         phone: user.phone,
         status: user.status,
         branchId: user.branchId,
+        branch: user.branch,
         roles,
         permissions,
       },
@@ -324,6 +328,9 @@ export class AuthService {
                 },
               },
             },
+            branch: {
+              select: { id: true, name: true, code: true },
+            },
           },
         },
       },
@@ -354,6 +361,8 @@ export class AuthService {
         id: user.id,
         email: user.email,
         name: user.name,
+        branchId: user.branchId,
+        branch: user.branch,
         roles,
         permissions,
       },

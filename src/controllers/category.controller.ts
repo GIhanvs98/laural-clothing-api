@@ -8,7 +8,7 @@ export const categoryController = {
       res.json({ data: categories, total: categories.length });
     } catch (error) {
       console.error('Error fetching categories:', error);
-      res.status(500).json({ error: 'Failed to fetch categories' });
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to fetch categories' });
     }
   },
 
@@ -21,7 +21,7 @@ export const categoryController = {
       res.json(category);
     } catch (error) {
       console.error('Error fetching category:', error);
-      res.status(500).json({ error: 'Failed to fetch category' });
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to fetch category' });
     }
   },
 
@@ -31,7 +31,7 @@ export const categoryController = {
       res.status(201).json(category);
     } catch (error) {
       console.error('Error creating category:', error);
-      res.status(500).json({ error: 'Failed to create category' });
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to create category' });
     }
   },
 
@@ -41,7 +41,7 @@ export const categoryController = {
       res.json(category);
     } catch (error) {
       console.error('Error updating category:', error);
-      res.status(500).json({ error: 'Failed to update category' });
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to update category' });
     }
   },
 
@@ -51,7 +51,7 @@ export const categoryController = {
       res.status(204).send();
     } catch (error) {
       console.error('Error deleting category:', error);
-      res.status(500).json({ error: 'Failed to delete category' });
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to delete category' });
     }
   },
 };

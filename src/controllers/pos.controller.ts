@@ -9,10 +9,10 @@ export const openSession = async (req: Request, res: Response) => {
     res.status(201).json(session);
   } catch (error: any) {
     console.error(error);
-    if (error.message.includes('Terminal already has an open session')) {
+    if (error.message && error.message.includes('Terminal already has an open session')) {
       return res.status(400).json({ error: error.message });
     }
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Internal server error' });
   }
 };
 
@@ -22,10 +22,10 @@ export const closeSession = async (req: Request, res: Response) => {
     res.json(closedSession);
   } catch (error: any) {
     console.error(error);
-    if (error.message.includes('Session not found')) {
+    if (error.message && error.message.includes('Session not found')) {
       return res.status(400).json({ error: error.message });
     }
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Internal server error' });
   }
 };
 
@@ -40,7 +40,37 @@ export const getCurrentSession = async (req: Request, res: Response) => {
     res.json(session);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Internal server error' });
+  }
+};
+
+export const getExpectedClosing = async (req: Request, res: Response) => {
+  try {
+    const { sessionId } = req.query;
+    if (!sessionId) {
+      return res.status(400).json({ error: 'Session ID required.' });
+    }
+    
+    const expectedClosing = await posService.getExpectedClosing(String(sessionId));
+    res.json(expectedClosing);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Internal server error' });
+  }
+};
+
+export const getSessionSummary = async (req: Request, res: Response) => {
+  try {
+    const { sessionId } = req.query;
+    if (!sessionId) {
+      return res.status(400).json({ error: 'Session ID required.' });
+    }
+    
+    const summary = await posService.getSessionSummary(String(sessionId));
+    res.json(summary);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Internal server error' });
   }
 };
 
@@ -82,7 +112,7 @@ export const generateVoucher = async (req: Request, res: Response) => {
     res.status(201).json(voucher);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Internal server error' });
   }
 };
 
@@ -104,7 +134,7 @@ export const validateVoucher = async (req: Request, res: Response) => {
     res.json(voucher);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Internal server error' });
   }
 };
 
@@ -203,6 +233,6 @@ export const processPosOrder = async (req: Request, res: Response) => {
     res.status(201).json(order);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Internal server error' });
   }
 };

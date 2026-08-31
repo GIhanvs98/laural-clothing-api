@@ -10,6 +10,6 @@ export const categoryWithPreviewSelect = {
   createdAt: true,
   updatedAt: true,
   _count: {
-    select: { products: true, legacyProducts: true }
+    select: { products: true }
   }
 } satisfies Prisma.CategorySelect;
