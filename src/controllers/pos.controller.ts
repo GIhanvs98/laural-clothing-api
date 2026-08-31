@@ -212,10 +212,24 @@ export const processPosOrder = async (req: Request, res: Response) => {
     // 4. Deduct Inventory
     for (const item of items) {
       // Deduct from branch inventory
-      await prisma.inventoryItem.updateMany({
-        where: { variantId: item.variantId, branchId },
-        data: { quantity: { decrement: item.qty } }
+      const inventory = await prisma.inventoryItem.findUnique({
+        where: { variantId_branchId: { variantId: item.variantId, branchId } }
       });
+
+      if (inventory) {
+        await prisma.inventoryItem.update({
+          where: { id: inventory.id },
+          data: { quantity: { decrement: item.qty } }
+        });
+      } else {
+        await prisma.inventoryItem.create({
+          data: {
+            variantId: item.variantId,
+            branchId,
+            quantity: -item.qty
+          }
+        });
+      }
       
       // Log transaction
       await prisma.inventoryTransaction.create({

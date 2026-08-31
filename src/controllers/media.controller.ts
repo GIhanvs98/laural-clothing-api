@@ -67,3 +67,13 @@ export const viewMediaFile = async (req: Request, res: Response) => {
     res.status(500).json({ error: "Failed to generate media URL" });
   }
 };
+
+export const syncS3 = async (req: Request, res: Response) => {
+  try {
+    const result = await mediaService.syncS3Files();
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error(error);
+    res.status(500).json({ error: error.message || "Failed to sync S3 files" });
+  }
+};

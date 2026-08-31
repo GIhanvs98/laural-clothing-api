@@ -565,6 +565,12 @@ model StaticPage {
   title      String
   slug       String   @unique
   content    String   @db.Text
+  
+  metaTitle       String?
+  metaDescription String?  @db.Text
+  metaKeywords    String?
+  ogImage         String?
+
   lastEdited DateTime @default(now())
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt

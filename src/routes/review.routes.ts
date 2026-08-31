@@ -5,6 +5,7 @@ import {
   getCustomerReviews,
   getPendingReviews,
   getAllReviews,
+  getPublicReviews,
   updateReviewStatus,
   deleteReview,
   adminReplyToReview,
@@ -16,6 +17,7 @@ import { verifyTurnstile } from '../middlewares/turnstile.middleware';
 
 const router = Router();
 
+router.get('/public', getPublicReviews);
 router.post('/', authenticateJWT, checkHoneypot, verifyTurnstile, createReview);
 router.get('/product/:productId', getReviewsForProduct);
 router.get('/customer/:customerId', authenticateJWT, getCustomerReviews);

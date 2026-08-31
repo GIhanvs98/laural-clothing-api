@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { MediaFile } from "@prisma/client";
 import prisma from '../config/prisma';
@@ -117,5 +117,66 @@ export const mediaService = {
 
     // Delete from DB
     await prisma.mediaFile.delete({ where: { id } });
+  },
+
+  /**
+   * Sync from S3 Bucket
+   * Pulls all files from the S3 bucket and registers them in the database if missing
+   */
+  async syncS3Files(): Promise<{ added: number }> {
+    let continuationToken: string | undefined = undefined;
+    let addedCount = 0;
+
+    do {
+      const command = new ListObjectsV2Command({
+        Bucket: BUCKET_NAME,
+        ContinuationToken: continuationToken,
+      });
+
+      const response = await s3Client.send(command);
+
+      if (response.Contents) {
+        for (const item of response.Contents) {
+          if (!item.Key) continue;
+
+          // Check if file already exists in DB
+          const existing = await prisma.mediaFile.findUnique({
+            where: { key: item.Key }
+          });
+
+          if (!existing) {
+            // Determine name and folder
+            const parts = item.Key.split('/');
+            const filename = parts.pop() || item.Key;
+            const folder = parts.length > 0 ? parts.join('/') : 'Uncategorized';
+            
+            // Determine type from extension
+            const ext = filename.split('.').pop()?.toLowerCase();
+            let type = 'image/jpeg';
+            if (ext === 'png') type = 'image/png';
+            if (ext === 'webp') type = 'image/webp';
+            if (ext === 'svg') type = 'image/svg+xml';
+            if (ext === 'mp4') type = 'video/mp4';
+
+            const publicUrl = `/api/v1/media/view?key=${encodeURIComponent(item.Key)}`;
+
+            await prisma.mediaFile.create({
+              data: {
+                name: filename,
+                type,
+                folder,
+                size: item.Size || 0,
+                url: publicUrl,
+                key: item.Key
+              }
+            });
+            addedCount++;
+          }
+        }
+      }
+      continuationToken = response.NextContinuationToken;
+    } while (continuationToken);
+
+    return { added: addedCount };
   }
 };

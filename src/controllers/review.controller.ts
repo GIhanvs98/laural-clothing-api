@@ -56,6 +56,16 @@ export const getAllReviews = async (req: Request, res: Response) => {
   }
 };
 
+export const getPublicReviews = async (req: Request, res: Response) => {
+  try {
+    const reviews = await reviewService.getAllReviews('APPROVED');
+    res.json(reviews);
+  } catch (error: any) {
+    console.error(error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
 export const updateReviewStatus = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;

@@ -51,7 +51,7 @@ export const createQuickDispatch = async (req: Request, res: Response) => {
 
 export const getOrders = async (req: Request, res: Response) => {
   try {
-    const { status, paymentGateway, branchId, customerId, page, limit } = req.query;
+    const { status, paymentGateway, branchId, customerId, page, limit, type } = req.query;
     
     const skip = page ? (parseInt(page as string) - 1) * parseInt(limit as string || '20') : 0;
     const take = limit ? parseInt(limit as string) : 20;
@@ -60,7 +60,8 @@ export const getOrders = async (req: Request, res: Response) => {
       status,
       paymentGateway,
       branchId,
-      customerId
+      customerId,
+      type
     }, { skip, take });
 
     res.json({
