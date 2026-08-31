@@ -61,9 +61,8 @@ export const mediaService = {
     // URL expires in 5 minutes
     const url = await getSignedUrl(s3Client, command, { expiresIn: 300 });
     
-    // Use an internal proxy route instead of exposing the bucket URL
-    const baseUrl = process.env.API_BASE_URL || "http://localhost:5000";
-    const publicUrl = `${baseUrl}/api/v1/media/view?key=${encodeURIComponent(key)}`;
+    // Use a relative path so the frontend's rewrites handle routing to the correct API base
+    const publicUrl = `/api/v1/media/view?key=${encodeURIComponent(key)}`;
 
     return { url, key, publicUrl };
   },
