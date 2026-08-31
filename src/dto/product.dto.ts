@@ -13,6 +13,17 @@ export const variantBasicSelect = {
   size: true,
   featuredImage: true,
   gallery: true,
+  inventoryItems: {
+    select: {
+      branchId: true,
+      quantity: true,
+      branch: {
+        select: {
+          code: true
+        }
+      }
+    }
+  },
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.ProductVariantSelect;

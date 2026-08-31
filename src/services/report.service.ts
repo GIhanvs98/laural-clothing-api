@@ -156,5 +156,40 @@ export const reportService = {
       lowStockItems,
       totalGlobalValuation: Object.values(branchValuation).reduce((sum, b) => sum + b.valuation, 0),
     };
+  },
+
+  getCustomerReport: async (startDate: Date, endDate: Date) => {
+    return {
+      totalNew: 0,
+      registered: 0,
+      guest: 0,
+      topCustomers: []
+    };
+  },
+
+  getPosReport: async (startDate: Date, endDate: Date) => {
+    return {
+      summary: {
+        totalSessions: 0,
+        totalVariance: 0,
+        expectedTotal: 0,
+        actualTotal: 0
+      },
+      terminals: []
+    };
+  },
+
+  getPromotionsReport: async (startDate: Date, endDate: Date) => {
+    return {
+      vouchers: {
+        issued: 0,
+        used: 0,
+        outstandingLiability: 0
+      },
+      coupons: {
+        issued: 0,
+        totalUsages: 0
+      }
+    };
   }
 };

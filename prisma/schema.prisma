@@ -11,6 +11,8 @@ model Category {
   name           String
   slug           String          @unique
   description    String?
+  status         String          @default("Active")
+  imageUrl       String?
   products       Product[]
   legacyProducts LegacyProduct[]
   createdAt      DateTime        @default(now())

@@ -3,8 +3,12 @@ import { mediaService } from "../services/media.service";
 
 export const getMediaFiles = async (req: Request, res: Response) => {
   try {
-    const { folder } = req.query;
-    const media = await mediaService.getMediaFiles(folder as string);
+    const { folder, page = 1, limit = 20 } = req.query;
+    const media = await mediaService.getMediaFiles(
+      folder as string, 
+      Number(page), 
+      Number(limit)
+    );
     res.json(media);
   } catch (error: any) {
     console.error(error);

@@ -88,11 +88,9 @@ app.use(cors({
     if (!origin) return callback(null, true);
     
     const allowed = [
-      "http://localhost:3000",
-      "http://localhost:3001",
       process.env.FRONTEND_URL,
       process.env.ADMIN_URL
-    ].filter(Boolean);
+    ].filter(Boolean) as string[];
     
     if (allowed.includes(origin) || origin.endsWith('.up.railway.app')) {
       callback(null, true);

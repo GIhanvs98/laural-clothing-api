@@ -1,73 +1,30 @@
 import { Request, Response } from 'express';
 import prisma from '../config/prisma';
 
+import { posService } from '../services/pos.service';
+
 export const openSession = async (req: Request, res: Response) => {
   try {
-    const { branchId, terminalId, userId, openingFloat } = req.body;
-    
-    // Check if there's already an open session for this terminal
-    const existing = await prisma.posSession.findFirst({
-      where: { terminalId, status: 'OPEN' }
-    });
-    
-    if (existing) {
-      return res.status(400).json({ error: 'Terminal already has an open session.' });
-    }
-
-    const session = await prisma.posSession.create({
-      data: {
-        branchId,
-        terminalId,
-        userId,
-        openingFloat: Number(openingFloat) || 0,
-        status: 'OPEN'
-      }
-    });
-    
+    const session = await posService.openSession(req.body);
     res.status(201).json(session);
-  } catch (error) {
+  } catch (error: any) {
     console.error(error);
+    if (error.message.includes('Terminal already has an open session')) {
+      return res.status(400).json({ error: error.message });
+    }
     res.status(500).json({ error: 'Internal server error' });
   }
 };
 
 export const closeSession = async (req: Request, res: Response) => {
   try {
-    const { sessionId, actualClosing } = req.body;
-    
-    const session = await prisma.posSession.findUnique({
-      where: { id: sessionId },
-      include: { orders: true }
-    });
-    
-    if (!session || session.status === 'CLOSED') {
-      return res.status(400).json({ error: 'Session not found or already closed.' });
-    }
-    
-    // Calculate expected closing
-    // Sum of all CASH payments during this session
-    const cashOrders = await prisma.order.aggregate({
-      where: { posSessionId: sessionId, paymentMethod: 'CASH', paymentStatus: 'PAID' },
-      _sum: { total: true }
-    });
-    
-    const expectedClosing = session.openingFloat + (cashOrders._sum.total || 0);
-    const variance = actualClosing - expectedClosing;
-    
-    const closedSession = await prisma.posSession.update({
-      where: { id: sessionId },
-      data: {
-        status: 'CLOSED',
-        closedAt: new Date(),
-        expectedClosing,
-        actualClosing,
-        variance
-      }
-    });
-    
+    const closedSession = await posService.closeSession(req.body);
     res.json(closedSession);
-  } catch (error) {
+  } catch (error: any) {
     console.error(error);
+    if (error.message.includes('Session not found')) {
+      return res.status(400).json({ error: error.message });
+    }
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -79,10 +36,7 @@ export const getCurrentSession = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Terminal ID required.' });
     }
     
-    const session = await prisma.posSession.findFirst({
-      where: { terminalId: String(terminalId), status: 'OPEN' }
-    });
-    
+    const session = await posService.getCurrentSession(String(terminalId));
     res.json(session);
   } catch (error) {
     console.error(error);

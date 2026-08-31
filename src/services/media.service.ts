@@ -9,23 +9,38 @@ const BUCKET_NAME = process.env.AWS_S3_BUCKET_NAME || "laural-media-bucket";
 // Initialize S3 Client
 // If the environment variables are not set, it will fallback to mock values to prevent crashing during local dev
 const s3Client = new S3Client({
-  region: process.env.AWS_REGION || "ap-southeast-1",
+  region: process.env.AWS_S3_REGION || process.env.AWS_REGION || "ap-southeast-1",
+  endpoint: process.env.AWS_S3_ENDPOINT || undefined,
   credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID || "MOCK_ACCESS_KEY",
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || "MOCK_SECRET_KEY"
-  }
+    accessKeyId: process.env.AWS_S3_ACCESS_KEY_ID || process.env.AWS_ACCESS_KEY_ID || "MOCK_ACCESS_KEY",
+    secretAccessKey: process.env.AWS_S3_SECRET_ACCESS_KEY || process.env.AWS_SECRET_ACCESS_KEY || "MOCK_SECRET_KEY"
+  },
+  forcePathStyle: true,
 });
 
 export const mediaService = {
   /**
    * List all media files
    */
-  async getMediaFiles(folder?: string): Promise<MediaFile[]> {
+  async getMediaFiles(folder?: string, page: number = 1, limit: number = 20): Promise<{ data: MediaFile[], total: number, page: number, totalPages: number }> {
     const where = folder && folder !== 'All' ? { folder } : {};
-    return prisma.mediaFile.findMany({
-      where,
-      orderBy: { createdAt: 'desc' }
-    });
+    const skip = (page - 1) * limit;
+    const [data, total] = await Promise.all([
+      prisma.mediaFile.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit
+      }),
+      prisma.mediaFile.count({ where })
+    ]);
+    
+    return {
+      data,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit)
+    };
   },
 
   /**

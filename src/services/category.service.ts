@@ -15,25 +15,16 @@ export const categoryService = {
       });
 
       return Promise.all(categories.map(async (category) => {
-        let imageUrl = null;
-        try {
-          const products = category.products || [];
-          const firstProduct = products[0];
-          const variants = firstProduct?.variants || [];
-          const firstVariant = variants[0];
-          const featuredImage = firstVariant?.featuredImage || null;
-          
-          if (featuredImage) {
-            imageUrl = await signImageUrl(featuredImage);
+        let signedUrl = null;
+        if (category.imageUrl) {
+          try {
+            signedUrl = await signImageUrl(category.imageUrl);
+          } catch (error) {
+            console.error(`Failed to sign image URL for category ${category.name}:`, error);
           }
-        } catch (error) {
-          console.error(`Failed to sign image URL for category ${category.name}:`, error);
-          // Gracefully fallback to null instead of failing the entire API response
-          imageUrl = null;
         }
         
-        const { products, ...rest } = category;
-        return { ...rest, imageUrl };
+        return { ...category, imageUrl: signedUrl || category.imageUrl };
       }));
     });
   },
@@ -47,23 +38,15 @@ export const categoryService = {
 
       if (!category) return null;
 
-      let imageUrl = null;
-      try {
-        const products = category.products || [];
-        const firstProduct = products[0];
-        const variants = firstProduct?.variants || [];
-        const firstVariant = variants[0];
-        const featuredImage = firstVariant?.featuredImage || null;
-        
-        if (featuredImage) {
-          imageUrl = await signImageUrl(featuredImage);
+      let signedUrl = null;
+      if (category.imageUrl) {
+        try {
+          signedUrl = await signImageUrl(category.imageUrl);
+        } catch (error) {
+          console.error(`Failed to sign image URL for category ${category.name}:`, error);
         }
-      } catch (error) {
-        console.error(`Failed to sign image URL for category ${category.name}:`, error);
-        imageUrl = null;
       }
-      const { products, ...rest } = category;
-      return { ...rest, imageUrl };
+      return { ...category, imageUrl: signedUrl || category.imageUrl };
     });
   },
 
