@@ -180,6 +180,15 @@ export const processPosOrder = async (req: Request, res: Response) => {
     const calculatedTax = 0;
     const calculatedTotal = Math.max(0, (calculatedSubtotal + calculatedTax) - voucherDeduction);
 
+    // Validate branchId
+    if (!branchId) {
+      return res.status(400).json({ error: 'Branch ID is required to process a POS order.' });
+    }
+    const branchExists = await prisma.branch.findUnique({ where: { id: branchId }, select: { id: true } });
+    if (!branchExists) {
+      return res.status(400).json({ error: `Branch "${branchId}" not found. Please ensure your account is assigned to a valid branch.` });
+    }
+
     // 2. Create Order
     const order = await prisma.order.create({
       data: {
