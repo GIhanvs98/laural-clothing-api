@@ -136,41 +136,48 @@ export const mediaService = {
       const response: any = await s3Client.send(command);
 
       if (response.Contents) {
-        for (const item of response.Contents) {
-          if (!item.Key) continue;
-
-          // Check if file already exists in DB
-          const existing = await prisma.mediaFile.findUnique({
-            where: { key: item.Key }
+        const keys = response.Contents.map((item: any) => item.Key).filter(Boolean);
+        if (keys.length > 0) {
+          // Check if files already exist in DB
+          const existingFiles = await prisma.mediaFile.findMany({
+            where: { key: { in: keys } },
+            select: { key: true }
           });
+          const existingKeys = new Set(existingFiles.map(f => f.key));
 
-          if (!existing) {
-            // Determine name and folder
-            const parts = item.Key.split('/');
-            const filename = parts.pop() || item.Key;
-            const folder = parts.length > 0 ? parts.join('/') : 'Uncategorized';
-            
-            // Determine type from extension
-            const ext = filename.split('.').pop()?.toLowerCase();
-            let type = 'image/jpeg';
-            if (ext === 'png') type = 'image/png';
-            if (ext === 'webp') type = 'image/webp';
-            if (ext === 'svg') type = 'image/svg+xml';
-            if (ext === 'mp4') type = 'video/mp4';
+          const newItems = response.Contents.filter((item: any) => item.Key && !existingKeys.has(item.Key));
 
-            const publicUrl = `/api/v1/media/view?key=${encodeURIComponent(item.Key)}`;
+          if (newItems.length > 0) {
+            const createData = newItems.map((item: any) => {
+              const parts = item.Key.split('/');
+              const filename = parts.pop() || item.Key;
+              const folder = parts.length > 0 ? parts.join('/') : 'Uncategorized';
+              
+              const ext = filename.split('.').pop()?.toLowerCase();
+              let type = 'image/jpeg';
+              if (ext === 'png') type = 'image/png';
+              if (ext === 'webp') type = 'image/webp';
+              if (ext === 'svg') type = 'image/svg+xml';
+              if (ext === 'mp4') type = 'video/mp4';
 
-            await prisma.mediaFile.create({
-              data: {
+              const publicUrl = `/api/v1/media/view?key=${encodeURIComponent(item.Key)}`;
+
+              return {
                 name: filename,
                 type,
                 folder,
                 size: item.Size || 0,
                 url: publicUrl,
                 key: item.Key
-              }
+              };
             });
-            addedCount++;
+
+            await prisma.mediaFile.createMany({
+              data: createData,
+              skipDuplicates: true
+            });
+
+            addedCount += newItems.length;
           }
         }
       }
