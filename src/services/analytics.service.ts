@@ -73,7 +73,7 @@ export const analyticsService = {
     const { current, previous } = this.getDateRanges(period);
 
     // Resolve branch
-    let branchFilter = {};
+    let branchFilter: any = {};
     if (branchName && branchName !== 'All') {
       if (branchName === 'Online') {
         branchFilter = { branchId: null };
@@ -96,76 +96,97 @@ export const analyticsService = {
       status: { notIn: ['CANCELLED', 'REFUNDED'] }
     };
 
-    // CURRENT PERIOD METRICS (Aggregated at Database level)
-    const currentOrdersAgg = await prisma.order.aggregate({
-      where: {
-        ...orderBaseFilter,
-        createdAt: { gte: current.start, lte: current.end }
-      },
-      _sum: { total: true },
-      _count: true
-    });
+    // Run aggregations concurrently to speed up dashboard
+    const [
+      currentOrdersAgg,
+      currentNewCustomers,
+      previousOrdersAgg,
+      previousNewCustomers,
+      pendingOrdersCount,
+      inventoryResult,
+      returnsAgg,
+      gatewayGroups,
+      recentTransactions
+    ] = await Promise.all([
+      // CURRENT PERIOD METRICS
+      prisma.order.aggregate({
+        where: {
+          ...orderBaseFilter,
+          createdAt: { gte: current.start, lte: current.end }
+        },
+        _sum: { total: true },
+        _count: true
+      }),
+      prisma.customer.count({
+        where: { createdAt: { gte: current.start, lte: current.end } }
+      }),
+      // PREVIOUS PERIOD METRICS
+      prisma.order.aggregate({
+        where: {
+          ...orderBaseFilter,
+          createdAt: { gte: previous.start, lte: previous.end }
+        },
+        _sum: { total: true },
+        _count: true
+      }),
+      prisma.customer.count({
+        where: { createdAt: { gte: previous.start, lte: previous.end } }
+      }),
+      // OVERALL METRICS
+      prisma.order.count({
+        where: {
+          ...branchFilter,
+          status: { in: ['PENDING', 'PROCESSING'] }
+        }
+      }),
+      // CORRECTED Inventory Value Query (using InventoryItem)
+      branchName && branchName !== 'All' && branchName !== 'Online'
+        ? prisma.$queryRaw<[{ total: number | null }]>`
+            SELECT SUM(pv.price * ii.quantity) as total 
+            FROM "ProductVariant" pv 
+            JOIN "InventoryItem" ii ON ii."variantId" = pv.id
+            WHERE ii."branchId" = ${branchFilter.branchId}
+          `
+        : prisma.$queryRaw<[{ total: number | null }]>`
+            SELECT SUM(pv.price * ii.quantity) as total 
+            FROM "ProductVariant" pv 
+            JOIN "InventoryItem" ii ON ii."variantId" = pv.id
+          `,
+      prisma.order.aggregate({
+        where: {
+          ...branchFilter,
+          paymentStatus: 'REFUNDED',
+          createdAt: { gte: current.start, lte: current.end }
+        },
+        _sum: { total: true }
+      }),
+      prisma.order.groupBy({
+        by: ['paymentMethod'],
+        where: {
+          ...orderBaseFilter,
+          createdAt: { gte: current.start, lte: current.end }
+        },
+        _sum: { total: true },
+        _count: true
+      }),
+      prisma.order.findMany({
+        where: orderBaseFilter,
+        take: 10,
+        orderBy: { createdAt: 'desc' },
+        include: { customer: true, branch: true }
+      })
+    ]);
 
     const currentRevenue = currentOrdersAgg._sum.total || 0;
     const currentOrderCount = currentOrdersAgg._count || 0;
     const currentAvgOrderValue = currentOrderCount > 0 ? currentRevenue / currentOrderCount : 0;
 
-    const currentNewCustomers = await prisma.customer.count({
-      where: { createdAt: { gte: current.start, lte: current.end } }
-    });
-
-    // PREVIOUS PERIOD METRICS (Aggregated at Database level)
-    const previousOrdersAgg = await prisma.order.aggregate({
-      where: {
-        ...orderBaseFilter,
-        createdAt: { gte: previous.start, lte: previous.end }
-      },
-      _sum: { total: true },
-      _count: true
-    });
-
     const previousRevenue = previousOrdersAgg._sum.total || 0;
     const previousOrderCount = previousOrdersAgg._count || 0;
     const previousAvgOrderValue = previousOrderCount > 0 ? previousRevenue / previousOrderCount : 0;
 
-    const previousNewCustomers = await prisma.customer.count({
-      where: { createdAt: { gte: previous.start, lte: previous.end } }
-    });
-
-    // OVERALL (NON-TIME BOUND OR SPECIFIC) METRICS
-    const pendingOrdersCount = await prisma.order.count({
-      where: {
-        ...branchFilter,
-        status: { in: ['PENDING', 'PROCESSING'] }
-      }
-    });
-
-    // Inventory Value via Raw SQL for efficiency (price * quantity across all rows)
-    const inventoryResult = await prisma.$queryRaw<[{ total: number | null }]>`
-      SELECT SUM(price * quantity) as total FROM "ProductVariant"
-    `;
     const inventoryValue = inventoryResult[0]?.total || 0;
-
-    const returnsAgg = await prisma.order.aggregate({
-      where: {
-        ...branchFilter,
-        paymentStatus: 'REFUNDED',
-        createdAt: { gte: current.start, lte: current.end }
-      },
-      _sum: { total: true }
-    });
     const returnsValue = returnsAgg._sum.total || 0;
-
-    // PAYMENT GATEWAYS (CURRENT PERIOD) via groupBy
-    const gatewayGroups = await prisma.order.groupBy({
-      by: ['paymentMethod'],
-      where: {
-        ...orderBaseFilter,
-        createdAt: { gte: current.start, lte: current.end }
-      },
-      _sum: { total: true },
-      _count: true
-    });
 
     const paymentGateways: Record<string, { count: number, total: number }> = {};
     let totalGatewayAmount = 0;
@@ -188,24 +209,12 @@ export const analyticsService = {
         count: stats.count,
         pct: totalGatewayAmount > 0 ? Math.round((stats.total / totalGatewayAmount) * 100) : 0
       }))
-      .sort((a, b) => b.amount - a.amount); // Sort by highest revenue
+      .sort((a, b) => b.amount - a.amount);
 
-    // Calculate trends
     const revenueTrend = this.calculateTrend(currentRevenue, previousRevenue);
     const ordersTrend = this.calculateTrend(currentOrderCount, previousOrderCount);
     const customersTrend = this.calculateTrend(currentNewCustomers, previousNewCustomers);
     const aovTrend = this.calculateTrend(currentAvgOrderValue, previousAvgOrderValue);
-
-    // RECENT TRANSACTIONS
-    const recentTransactions = await prisma.order.findMany({
-      where: orderBaseFilter,
-      take: 10,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        customer: true,
-        branch: true
-      }
-    });
 
     return {
       revenue: {

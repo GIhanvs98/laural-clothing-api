@@ -7,23 +7,32 @@ export const inventoryService = {
 
   // ─── Branches ────────────────────────────────────────────────────────────────
   async getBranches() {
-    const branches = await prisma.branch.findMany({
-      orderBy: { name: 'asc' },
-      include: {
-        manager: {
-          select: { name: true }
-        },
-        _count: {
-          select: { staff: true, posTerminals: true }
-        },
-        orders: {
-          select: { total: true }
+    const [branches, revenueAgg] = await Promise.all([
+      prisma.branch.findMany({
+        orderBy: { name: 'asc' },
+        include: {
+          manager: {
+            select: { name: true }
+          },
+          _count: {
+            select: { staff: true, posTerminals: true }
+          }
         }
-      }
-    });
+      }),
+      prisma.order.groupBy({
+        by: ['branchId'],
+        _sum: { total: true },
+        where: {
+          branchId: { not: null }
+        }
+      })
+    ]);
+
+    const revenueMap = new Map(
+      revenueAgg.map(r => [r.branchId, r._sum.total || 0])
+    );
 
     return branches.map(branch => {
-      const revenue = branch.orders.reduce((sum, order) => sum + order.total, 0);
       return {
         id: branch.id,
         name: branch.name,
@@ -35,7 +44,7 @@ export const inventoryService = {
         managerName: branch.manager?.name || 'N/A',
         staffCount: branch._count.staff,
         posCount: branch._count.posTerminals,
-        revenue,
+        revenue: revenueMap.get(branch.id) || 0,
       };
     });
   },
