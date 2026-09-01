@@ -67,6 +67,10 @@ export const trackFailedLogin = async (ip: string, email: string) => {
  * Returns 429 immediately if the IP is currently locked out.
  */
 export const checkLoginLockout = async (req: Request, res: Response, next: NextFunction) => {
+  if (redisClient.status !== 'ready') {
+    return next();
+  }
+
   const ip      = getIp(req);
   const lockKey = `login:locked:${ip}`;
 
@@ -80,7 +84,7 @@ export const checkLoginLockout = async (req: Request, res: Response, next: NextF
       });
     }
   } catch (err) {
-    logger.error('Redis error during checkLoginLockout:', err);
+    // Fail open
   }
 
   next();
