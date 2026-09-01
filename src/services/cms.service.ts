@@ -36,19 +36,10 @@ export class CmsService {
   }
 
   async createBanner(data: Prisma.BannerCreateInput) {
-    if (data.active) {
-      await prisma.banner.updateMany({ data: { active: false } });
-    }
     return prisma.banner.create({ data });
   }
 
   async updateBanner(id: string, data: Prisma.BannerUpdateInput) {
-    if (data.active) {
-      await prisma.banner.updateMany({
-        where: { id: { not: id } },
-        data: { active: false }
-      });
-    }
     return prisma.banner.update({ where: { id }, data });
   }
 
