@@ -20,10 +20,15 @@ export async function withCache<T>(
   const freshData = await fetcher();
 
   if (freshData !== null && freshData !== undefined && redisClient.status === 'ready') {
-    try {
-      await redisClient.setex(key, ttlSeconds, JSON.stringify(freshData));
-    } catch (error) {
-      // Fail open
+    // Prevent caching empty arrays to avoid poisoning the cache with false negatives
+    if (Array.isArray(freshData) && freshData.length === 0) {
+      logger.warn(`Bypassing cache for key ${key} because fetcher returned an empty array`);
+    } else {
+      try {
+        await redisClient.setex(key, ttlSeconds, JSON.stringify(freshData));
+      } catch (error) {
+        // Fail open
+      }
     }
   }
 
