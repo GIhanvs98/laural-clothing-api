@@ -6,22 +6,24 @@ export async function withCache<T>(
   ttlSeconds: number,
   fetcher: () => Promise<T>
 ): Promise<T> {
-  try {
-    const cachedData = await redisClient.get(key);
-    if (cachedData) {
-      return JSON.parse(cachedData) as T;
+  if (redisClient.status === 'ready') {
+    try {
+      const cachedData = await redisClient.get(key);
+      if (cachedData) {
+        return JSON.parse(cachedData) as T;
+      }
+    } catch (error) {
+      // Fail open
     }
-  } catch (error) {
-    logger.error(`Redis get error for key ${key}:`, error);
   }
 
   const freshData = await fetcher();
 
-  if (freshData !== null && freshData !== undefined) {
+  if (freshData !== null && freshData !== undefined && redisClient.status === 'ready') {
     try {
       await redisClient.setex(key, ttlSeconds, JSON.stringify(freshData));
     } catch (error) {
-      logger.error(`Redis setex error for key ${key}:`, error);
+      // Fail open
     }
   }
 
@@ -29,6 +31,7 @@ export async function withCache<T>(
 }
 
 export async function invalidateCache(pattern: string): Promise<void> {
+  if (redisClient.status !== 'ready') return;
   try {
     let cursor = '0';
     do {
@@ -39,6 +42,6 @@ export async function invalidateCache(pattern: string): Promise<void> {
       }
     } while (cursor !== '0');
   } catch (error) {
-    logger.error(`Redis invalidateCache error for pattern ${pattern}:`, error);
+    // Fail open
   }
 }

@@ -19,6 +19,10 @@ export const createRateLimiter = (endpointName: string, maxAttempts: number, win
 
     const key = `ratelimit:${endpointName}:${ip}`;
 
+    if (redisClient.status !== 'ready') {
+      return next();
+    }
+
     try {
       const current = await redisClient.incr(key);
       
@@ -36,7 +40,6 @@ export const createRateLimiter = (endpointName: string, maxAttempts: number, win
       
       next();
     } catch (error) {
-      console.error(`Rate limiter error for ${endpointName}:`, error);
       // Fail open: if Redis is down, we still want users to be able to access the API
       next();
     }
