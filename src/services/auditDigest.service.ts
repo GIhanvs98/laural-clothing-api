@@ -64,22 +64,22 @@ export const auditDigestService = {
       });
 
       // Format the digest message
-      const actionSummary = byAction
-        .map(a => `  • ${a.action}: ${a._count.action}`)
+      const actionSummary = (byAction as any[])
+        .map((a: any) => `  • ${a.action}: ${a._count.action}`)
         .join('\n');
 
-      const entitySummary = byEntity.slice(0, 8)
-        .map(e => `  • ${e.entity}: ${e._count.entity}`)
+      const entitySummary = (byEntity as any[]).slice(0, 8)
+        .map((e: any) => `  • ${e.entity}: ${e._count.entity}`)
         .join('\n');
 
       const deleteSummary = deleteEvents.length === 0
         ? '  None ✅'
-        : deleteEvents.map(d =>
+        : (deleteEvents as any[]).map((d: any) =>
             `  • [${d.entity}] ID:${d.entityId || 'n/a'} by User:${d.userId || 'anon'} from ${d.ipAddress} at ${d.createdAt.toISOString()}`
           ).join('\n');
 
-      const ipSummary = uniqueIps
-        .map(i => `  • ${i.ipAddress}: ${i._count.ipAddress} events`)
+      const ipSummary = (uniqueIps as any[])
+        .map((i: any) => `  • ${i.ipAddress}: ${i._count.ipAddress} events`)
         .join('\n');
 
       const webhookUrl = process.env.SLACK_WEBHOOK_URL;

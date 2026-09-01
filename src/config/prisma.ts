@@ -35,7 +35,7 @@ basePrisma.$on('query' as never, (e: any) => {
 const prisma = basePrisma.$extends({
   query: {
     $allModels: {
-      async $allOperations({ args, query }) {
+      async $allOperations({ args, query }: { args: any; query: (args: any) => Promise<any> }) {
         const ctx = requestContext.getStore();
         
         // If there is no context (e.g., background job, startup), run normally
@@ -48,16 +48,14 @@ const prisma = basePrisma.$extends({
         const currentRole = ctx.role || 'GUEST';
 
         // Wrap the actual query in a transaction to safely set the session variables
-        const [, result] = await basePrisma.$transaction([
-          basePrisma.$executeRaw`
+        return basePrisma.$transaction(async (tx) => {
+          await tx.$executeRaw`
             SELECT set_config('app.current_user_id', ${currentUserId}, true),
                    set_config('app.current_role', ${currentRole}, true),
                    set_config('app.is_admin', ${isAdmin.toString()}, true)
-          `,
-          query(args),
-        ]);
-        
-        return result;
+          `;
+          return query(args);
+        });
       },
     },
   },
