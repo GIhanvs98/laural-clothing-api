@@ -3,6 +3,10 @@ import { redisClient } from "../config/redis";
 import { logger } from "../utils/logger";
 
 export const emergencyKillSwitch = async (req: Request, res: Response, next: NextFunction) => {
+  if (redisClient.status !== 'ready') {
+    return next();
+  }
+
   try {
     const isEmergency = await redisClient.get("emergency:readonly");
     
@@ -19,9 +23,8 @@ export const emergencyKillSwitch = async (req: Request, res: Response, next: Nex
     
     next();
   } catch (error) {
-    // If Redis is down, we fail open to prevent completely breaking the API,
-    // but log a severe warning.
-    logger.error("Failed to check emergency kill switch in Redis:", error);
+    // If Redis error occurs, fail open smoothly
+    logger.warn("Failed to check emergency kill switch in Redis:", (error as any)?.message || error);
     next();
   }
 };
