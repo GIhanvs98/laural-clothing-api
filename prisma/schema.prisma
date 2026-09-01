@@ -546,6 +546,10 @@ model Banner {
   bgColor   String   @default("#1c1c1c")
   active    Boolean  @default(false)
   type      String   @default("PROMO")
+  
+  imageUrl    String?
+  showOverlay Boolean  @default(true)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
