@@ -2,6 +2,7 @@ import prisma from '../config/prisma';
 import { redisClient } from '../config/redis';
 import crypto from 'crypto';
 import { cartSelect, cartItemSelect } from '../dto/cart.dto';
+import { variantBasicSelect, productBasicSelect } from '../dto/product.dto';
 import { signImageUrl } from './product.service';
 
 const GUEST_CART_TTL = 7 * 24 * 60 * 60; // 7 days
@@ -41,7 +42,10 @@ async function signCartImages(cart: any) {
 async function getVariantWithProduct(variantId: string) {
   return prisma.productVariant.findUnique({
     where: { id: variantId },
-    include: { product: { select: { id: true, name: true, slug: true, variants: { select: { id: true, name: true, sku: true, price: true, salePrice: true, stockStatus: true, quantity: true, color: true, size: true, featuredImage: true, gallery: true } } } } },
+    select: {
+      ...variantBasicSelect,
+      product: { select: productBasicSelect },
+    }
   });
 }
 

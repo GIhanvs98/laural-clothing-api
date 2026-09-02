@@ -5,6 +5,8 @@ import { paymentService } from './payment.service';
 import { fraudService } from './fraud.service';
 import { alertService } from './alert.service';
 import { NotificationService } from './notification.service';
+import { getEffectivePrice } from '../utils/pricing.util';
+import { variantBasicSelect } from '../dto/product.dto';
 
 export const checkoutService = {
   /**
@@ -23,7 +25,11 @@ export const checkoutService = {
         where: { id: cartId },
         include: {
           items: {
-            include: { variant: true },
+            include: { 
+              variant: {
+                select: variantBasicSelect
+              }
+            },
           },
         },
       });
@@ -36,7 +42,7 @@ export const checkoutService = {
 
     let subtotal = 0;
     cart.items.forEach((item: any) => {
-      subtotal += item.quantity * (item.variant.salePrice ?? item.variant.price);
+      subtotal += item.quantity * getEffectivePrice(item.variant);
     });
 
     // Flat shipping rate for now
@@ -70,7 +76,7 @@ export const checkoutService = {
       cart = await prisma.cart.findUnique({
         where: { id: cartId },
         include: {
-          items: { include: { variant: true } },
+          items: { include: { variant: { select: variantBasicSelect } } },
         },
       });
       if (!cart) throw new Error('Cart not found');
@@ -166,7 +172,7 @@ export const checkoutService = {
           create: cart.items.map((item: any) => ({
             variantId: item.variantId,
             quantity: item.quantity,
-            priceAtPurchase: item.variant.salePrice ?? item.variant.price,
+            priceAtPurchase: getEffectivePrice(item.variant),
           })),
         },
       },
