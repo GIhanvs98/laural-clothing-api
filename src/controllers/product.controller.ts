@@ -1,5 +1,36 @@
 import { Request, Response } from 'express';
 import { productService } from '../services/product.service';
+import { z } from 'zod';
+
+const productVariantSchema = z.object({
+  size: z.string().optional().nullable(),
+  color: z.string().optional().nullable(),
+  sku: z.string().optional().nullable(),
+  price: z.number(),
+  salePrice: z.number().optional().nullable(),
+  quantity: z.number(),
+  stockStatus: z.string().optional(),
+  featuredImage: z.string().optional().nullable(),
+  gallery: z.array(z.string()).optional(),
+  inventoryItems: z.any().optional()
+});
+
+const productSchema = z.object({
+  name: z.string().min(1, 'Product name is required'),
+  slug: z.string().optional(),
+  description: z.string().optional(),
+  categoryId: z.string().optional(),
+  collectionId: z.string().optional(),
+  sizeGuideEnabled: z.boolean().optional(),
+  sizeGuideContent: z.string().optional().nullable(),
+  sizeGuideImageUrl: z.string().optional().nullable(),
+  variants: z.object({
+    create: z.array(productVariantSchema).optional(),
+    update: z.array(z.any()).optional(),
+    delete: z.array(z.any()).optional(),
+    deleteMany: z.any().optional()
+  }).optional()
+});
 
 export class ProductController {
   async getAllProducts(req: Request, res: Response) {
@@ -77,37 +108,7 @@ export class ProductController {
     }
   }
 
-import { z } from 'zod';
 
-const productVariantSchema = z.object({
-  size: z.string().optional().nullable(),
-  color: z.string().optional().nullable(),
-  sku: z.string().optional().nullable(),
-  price: z.number(),
-  salePrice: z.number().optional().nullable(),
-  quantity: z.number(),
-  stockStatus: z.string().optional(),
-  featuredImage: z.string().optional().nullable(),
-  gallery: z.array(z.string()).optional(),
-  inventoryItems: z.any().optional()
-});
-
-const productSchema = z.object({
-  name: z.string().min(1, 'Product name is required'),
-  slug: z.string().optional(),
-  description: z.string().optional(),
-  categoryId: z.string().optional(),
-  collectionId: z.string().optional(),
-  sizeGuideEnabled: z.boolean().optional(),
-  sizeGuideContent: z.string().optional().nullable(),
-  sizeGuideImageUrl: z.string().optional().nullable(),
-  variants: z.object({
-    create: z.array(productVariantSchema).optional(),
-    update: z.array(z.any()).optional(),
-    delete: z.array(z.any()).optional(),
-    deleteMany: z.any().optional()
-  }).optional()
-});
 
   async createProduct(req: Request, res: Response) {
     try {
