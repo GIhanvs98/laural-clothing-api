@@ -25,6 +25,24 @@ export const variantBasicSelect = {
       }
     }
   },
+  flashSaleItems: {
+    where: {
+      flashSale: {
+        status: 'ACTIVE'
+      }
+    },
+    select: {
+      salePrice: true,
+      flashSale: {
+        select: {
+          name: true,
+          discount: true,
+          startDate: true,
+          endDate: true
+        }
+      }
+    }
+  },
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.ProductVariantSelect;
