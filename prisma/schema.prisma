@@ -51,6 +51,10 @@ model Product {
   description String?
   excerpt     String?
 
+  sizeGuideEnabled  Boolean @default(false)
+  sizeGuideContent  String? @db.Text
+  sizeGuideImageUrl String?
+
   categoryId String?
   category   Category? @relation(fields: [categoryId], references: [id])
 
