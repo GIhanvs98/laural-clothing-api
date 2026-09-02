@@ -1,13 +1,14 @@
 import { Router } from 'express';
 import { getReturns, getReturnById, updateReturnStatus, verifyOrderForReturn, createReturn } from '../controllers/return.controller';
 import { authenticateJWT, requirePermission } from '../middlewares/auth.middleware';
+import { auditLog } from '../middlewares/audit.middleware';
 
 const router = Router();
 
 router.get('/verify', authenticateJWT, verifyOrderForReturn);
-router.post('/', authenticateJWT, createReturn);
+router.post('/', authenticateJWT, auditLog('ReturnRequest', 'CREATE'), createReturn);
 router.get('/', authenticateJWT, requirePermission("returns:view"), getReturns);
 router.get('/:id', authenticateJWT, requirePermission("returns:view"), getReturnById);
-router.put('/:id/status', authenticateJWT, requirePermission("returns:approve_reject"), updateReturnStatus);
+router.put('/:id/status', authenticateJWT, requirePermission("returns:approve_reject"), auditLog('ReturnRequest', 'UPDATE'), updateReturnStatus);
 
 export default router;
