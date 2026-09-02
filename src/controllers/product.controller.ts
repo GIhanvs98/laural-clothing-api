@@ -113,7 +113,7 @@ export class ProductController {
   async createProduct(req: Request, res: Response) {
     try {
       const validatedData = productSchema.parse(req.body);
-      const product = await productService.createProduct(validatedData);
+      const product = await productService.createProduct(validatedData as any);
       res.status(201).json(product);
     } catch (error: any) {
       if (error instanceof z.ZodError) {
@@ -128,7 +128,7 @@ export class ProductController {
     try {
       const { id } = req.params;
       const validatedData = productSchema.parse(req.body);
-      const product = await productService.updateProduct(id as string, validatedData);
+      const product = await productService.updateProduct(id as string, validatedData as any);
       res.status(200).json(product);
     } catch (error: any) {
       if (error instanceof z.ZodError) {
