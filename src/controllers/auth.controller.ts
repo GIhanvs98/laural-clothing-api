@@ -6,6 +6,7 @@ import { trackFailedLogin } from "../middlewares/loginAttempt.middleware";
 import { redisClient } from "../config/redis";
 import { logger } from "../utils/logger";
 import { generateFingerprint } from "../utils/jwt";
+import { auditService } from "../services/audit.service";
 
 const setTokenCookies = (res: Response, accessToken: string, refreshToken: string) => {
   const isProd = process.env.NODE_ENV === "production";
@@ -64,6 +65,16 @@ export class AuthController {
 
       setTokenCookies(res, result.accessToken, result.refreshToken);
 
+      await auditService.createLog({
+        userId: result.user.id,
+        action: 'CREATE',
+        entity: 'User',
+        entityId: result.user.id,
+        ipAddress: ip,
+        userAgent,
+        newData: { email: result.user.email }
+      });
+
       res.status(201).json({
         success: true,
         message: "Registration successful.",
@@ -105,6 +116,16 @@ export class AuthController {
       logger.info('Successful login', { email, ip });
 
       setTokenCookies(res, result.accessToken, result.refreshToken);
+
+      await auditService.createLog({
+        userId: result.user.id,
+        action: 'LOGIN',
+        entity: 'User',
+        entityId: result.user.id,
+        ipAddress: ip,
+        userAgent,
+        newData: { email: result.user.email, roles: result.user.roles }
+      });
 
       res.status(200).json({
         success: true,
@@ -164,6 +185,21 @@ export class AuthController {
 
       res.clearCookie("laural_access_token");
       res.clearCookie("laural_refresh_token");
+
+      if (userId) {
+        const forwarded = req.headers['x-forwarded-for'] as string | undefined;
+        const ip = (forwarded ? forwarded.split(',')[0]?.trim() : undefined) || req.socket?.remoteAddress || 'unknown';
+        const userAgent = (req.headers['user-agent'] as string) || 'unknown';
+
+        await auditService.createLog({
+          userId,
+          action: 'LOGOUT',
+          entity: 'User',
+          entityId: userId,
+          ipAddress: ip,
+          userAgent
+        });
+      }
 
       res.status(200).json({
         success: true,

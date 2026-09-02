@@ -1,6 +1,35 @@
 import prisma from '../config/prisma';
 
 export const auditService = {
+  createLog: async (data: {
+    userId?: string | null;
+    action: string;
+    entity: string;
+    entityId?: string | null;
+    oldData?: any;
+    newData?: any;
+    ipAddress?: string | null;
+    userAgent?: string | null;
+  }) => {
+    try {
+      return await prisma.auditLog.create({
+        data: {
+          userId: data.userId || null,
+          action: data.action,
+          entity: data.entity,
+          entityId: data.entityId || null,
+          oldData: data.oldData ? JSON.parse(JSON.stringify(data.oldData)) : undefined,
+          newData: data.newData ? JSON.parse(JSON.stringify(data.newData)) : undefined,
+          ipAddress: data.ipAddress || null,
+          userAgent: data.userAgent || null,
+        },
+      });
+    } catch (error) {
+      console.error('[Audit Log Error]: Failed to create audit log', error);
+      return null;
+    }
+  },
+
   getLogs: async (search?: string, action?: string, timeframe?: string, page: number = 1, limit: number = 50) => {
     const where: any = {};
     
@@ -23,6 +52,10 @@ export const auditService = {
       where.OR = [
         { userId: { contains: search, mode: 'insensitive' } },
         { entity: { contains: search, mode: 'insensitive' } },
+        { action: { contains: search, mode: 'insensitive' } },
+        { entityId: { contains: search, mode: 'insensitive' } },
+        { user: { name: { contains: search, mode: 'insensitive' } } },
+        { user: { email: { contains: search, mode: 'insensitive' } } },
       ];
     }
     

@@ -149,6 +149,7 @@ app.use(`${API_PREFIX}/reports`, reportRoutes);
 app.use(`${API_PREFIX}/otp`, otpRoutes);
 app.use(`${API_PREFIX}/notifications`, notificationRoutes);
 app.use(`${API_PREFIX}/audit`, auditRoutes);
+app.use(`${API_PREFIX}/system/audit`, auditRoutes);
 app.use(`${API_PREFIX}/feed`, feedRoutes);
 
 // Health Check
