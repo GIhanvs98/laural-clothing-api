@@ -50,6 +50,7 @@ model Product {
   slug        String  @unique
   description String?
   excerpt     String?
+  status      String  @default("ACTIVE")
 
   sizeGuideEnabled  Boolean @default(false)
   sizeGuideContent  String? @db.Text

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { productService } from '../services/product.service';
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 
 const productVariantSchema = z.object({
   size: z.string().optional().nullable(),
@@ -43,8 +44,9 @@ export class ProductController {
       const size = req.query.size as string | undefined;
       const minPrice = req.query.minPrice ? parseFloat(req.query.minPrice as string) : undefined;
       const maxPrice = req.query.maxPrice ? parseFloat(req.query.maxPrice as string) : undefined;
+      const status = req.query.status as string | undefined;
 
-      const result = await productService.getAllProducts({ skip, take, search, category, color, size, minPrice, maxPrice });
+      const result = await productService.getAllProducts({ skip, take, search, category, color, size, minPrice, maxPrice, status });
       res.status(200).json(result);
     } catch (error: any) {
       res.status(500).json({ error: error.message || 'Internal Server Error' });
@@ -120,6 +122,11 @@ export class ProductController {
         res.status(400).json({ error: 'Validation Error', details: error.errors });
         return;
       }
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const target = (error.meta?.target as string[]) || [];
+        res.status(400).json({ error: 'Validation Error', details: [{ message: `The ${target.join(', ')} you provided is already in use. Please use a unique value.` }] });
+        return;
+      }
       res.status(400).json({ error: error.message || 'Bad Request' });
     }
   }
@@ -135,6 +142,11 @@ export class ProductController {
         res.status(400).json({ error: 'Validation Error', details: error.errors });
         return;
       }
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const target = (error.meta?.target as string[]) || [];
+        res.status(400).json({ error: 'Validation Error', details: [{ message: `The ${target.join(', ')} you provided is already in use. Please use a unique value.` }] });
+        return;
+      }
       res.status(400).json({ error: error.message || 'Bad Request' });
     }
   }
@@ -144,6 +156,20 @@ export class ProductController {
       const { id } = req.params;
       await productService.deleteProduct(id as string);
       res.status(204).send();
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || 'Bad Request' });
+    }
+  }
+
+  async bulkEditProducts(req: Request, res: Response) {
+    try {
+      const { productIds, data } = req.body;
+      if (!productIds || !Array.isArray(productIds) || productIds.length === 0) {
+        res.status(400).json({ error: 'productIds array is required' });
+        return;
+      }
+      const result = await productService.bulkEditProducts(productIds, data);
+      res.status(200).json(result);
     } catch (error: any) {
       res.status(400).json({ error: error.message || 'Bad Request' });
     }

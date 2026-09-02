@@ -74,9 +74,10 @@ export class ProductService {
     size?: string;
     minPrice?: number;
     maxPrice?: number;
+    status?: string;
   }) {
-    const { skip = 0, take = 50, search, category, color, size, minPrice, maxPrice } = params;
-    const cacheKey = `products:all:skip:${skip}:take:${take}:search:${search || 'none'}:category:${category || 'none'}:color:${color || 'none'}:size:${size || 'none'}:minP:${minPrice || 'none'}:maxP:${maxPrice || 'none'}`;
+    const { skip = 0, take = 50, search, category, color, size, minPrice, maxPrice, status } = params;
+    const cacheKey = `products:all:skip:${skip}:take:${take}:search:${search || 'none'}:category:${category || 'none'}:color:${color || 'none'}:size:${size || 'none'}:minP:${minPrice || 'none'}:maxP:${maxPrice || 'none'}:status:${status || 'none'}`;
 
     return withCache(cacheKey, 900, async () => {
       const where: Prisma.ProductWhereInput = {
@@ -106,6 +107,10 @@ export class ProductService {
               }
             }
           : {}),
+        // If no status is specified, exclude ARCHIVED by default
+        ...(status && status !== 'ALL' 
+          ? { status: { equals: status, mode: 'insensitive' } } 
+          : (!status ? { status: { not: 'ARCHIVED' } } : {})),
       };
 
       const [products, total] = await Promise.all([
@@ -164,7 +169,14 @@ export class ProductService {
 
   async createProduct(data: Prisma.ProductCreateInput) {
     if (!data.slug) {
-      data.slug = data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + Date.now();
+      let baseSlug = data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      let slug = baseSlug;
+      let counter = 1;
+      while (await prisma.product.findUnique({ where: { slug } })) {
+        slug = `${baseSlug}-${counter}`;
+        counter++;
+      }
+      data.slug = slug;
     }
     
     const result = await prisma.product.create({
@@ -184,8 +196,18 @@ export class ProductService {
   }
 
   async deleteProduct(id: string) {
-    const result = await prisma.product.delete({
+    const result = await prisma.product.update({
       where: { id },
+      data: { status: 'ARCHIVED' }
+    });
+    await invalidateCache('product*');
+    return result;
+  }
+
+  async bulkEditProducts(productIds: string[], data: any) {
+    const result = await prisma.product.updateMany({
+      where: { id: { in: productIds } },
+      data,
     });
     await invalidateCache('product*');
     return result;
