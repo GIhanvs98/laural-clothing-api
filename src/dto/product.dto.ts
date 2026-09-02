@@ -15,6 +15,7 @@ export const variantBasicSelect = {
   gallery: true,
   inventoryItems: {
     select: {
+      id: true,
       branchId: true,
       quantity: true,
       branch: {
@@ -34,6 +35,7 @@ export const productBasicSelect = {
   slug: true,
   description: true,
   excerpt: true,
+  status: true,
   categoryId: true,
   createdAt: true,
   updatedAt: true,
