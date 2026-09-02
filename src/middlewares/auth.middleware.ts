@@ -6,8 +6,26 @@ export interface AuthRequest extends Request {
   user?: JWTPayload;
 }
 
+function normalizeRole(role: string): string {
+  return role.toUpperCase().replace(/[\s_]/g, "");
+}
+
+export function isSuperAdminRole(userRoles: string[] = []): boolean {
+  return userRoles.some((r) => {
+    const norm = normalizeRole(r);
+    return norm === "SUPERADMIN" || norm === "SYSTEMOWNER";
+  });
+}
+
+export function isAdminUserRole(userRoles: string[] = []): boolean {
+  return userRoles.some((r) => {
+    const norm = normalizeRole(r);
+    return norm === "SUPERADMIN" || norm === "SYSTEMOWNER" || norm === "ADMIN" || norm === "BRANCHADMIN";
+  });
+}
+
 function runWithContext(user: JWTPayload | undefined, next: NextFunction) {
-  const isAdmin = user?.roles?.some(r => r === 'ADMIN' || r === 'SUPER_ADMIN') || false;
+  const isAdmin = isAdminUserRole(user?.roles || []);
   requestContext.run({
     userId: user?.userId || null,
     role: isAdmin ? 'ADMIN' : (user ? 'USER' : 'GUEST'),
@@ -49,7 +67,7 @@ export function authenticateJWT(req: AuthRequest, res: Response, next: NextFunct
     }
 
     let finalPayload = payload;
-    const isAdmin = payload.roles?.some(r => r === 'ADMIN' || r === 'SUPER_ADMIN') || false;
+    const isAdmin = isAdminUserRole(payload.roles || []);
 
     // Admin Session Rotation every 15 minutes
     if (isAdmin && payload.iat && (Date.now() / 1000) - payload.iat > 15 * 60) {
@@ -107,10 +125,8 @@ export function requireRole(...allowedRoles: string[]) {
     }
 
     const userRoles = req.user.roles || [];
-    const isSuperAdmin = userRoles.some(
-      (r) => r.toUpperCase() === "SUPER_ADMIN" || r.toLowerCase() === "super admin"
-    );
-    const isAdmin = isSuperAdmin || userRoles.some(r => r.toUpperCase() === "ADMIN");
+    const isSuperAdmin = isSuperAdminRole(userRoles);
+    const isAdmin = isAdminUserRole(userRoles);
 
     if (isAdmin) {
       const adminIps = process.env.ADMIN_ALLOWED_IPS;
@@ -130,8 +146,9 @@ export function requireRole(...allowedRoles: string[]) {
       return;
     }
 
-    const hasAllowedRole = allowedRoles.some((allowed) =>
-      userRoles.some((userRole) => userRole.toLowerCase() === allowed.toLowerCase())
+    const normalizedAllowed = allowedRoles.map(r => normalizeRole(r));
+    const hasAllowedRole = userRoles.some(userRole =>
+      normalizedAllowed.includes(normalizeRole(userRole))
     );
 
     if (!hasAllowedRole) {
@@ -154,10 +171,8 @@ export function requirePermission(...requiredPermissions: string[]) {
     }
 
     const userRoles = req.user.roles || [];
-    const isSuperAdmin = userRoles.some(
-      (r) => r.toUpperCase() === "SUPER_ADMIN" || r.toLowerCase() === "super admin"
-    );
-    const isAdmin = isSuperAdmin || userRoles.some(r => r.toUpperCase() === "ADMIN");
+    const isSuperAdmin = isSuperAdminRole(userRoles);
+    const isAdmin = isAdminUserRole(userRoles);
 
     if (isAdmin) {
       const adminIps = process.env.ADMIN_ALLOWED_IPS;

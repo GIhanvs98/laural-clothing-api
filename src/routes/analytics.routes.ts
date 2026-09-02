@@ -4,6 +4,6 @@ import { authenticateJWT, requirePermission } from '../middlewares/auth.middlewa
 
 const router = Router();
 
-router.get('/overview', authenticateJWT, requirePermission("reports:view_dashboard"), getBusinessOverview);
+router.get('/overview', authenticateJWT, requirePermission("reports:view_dashboard", "reports:view_financial"), getBusinessOverview);
 
 export default router;
