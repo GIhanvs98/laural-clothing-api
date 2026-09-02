@@ -77,11 +77,48 @@ export class ProductController {
     }
   }
 
+import { z } from 'zod';
+
+const productVariantSchema = z.object({
+  size: z.string().optional().nullable(),
+  color: z.string().optional().nullable(),
+  sku: z.string().optional().nullable(),
+  price: z.number(),
+  salePrice: z.number().optional().nullable(),
+  quantity: z.number(),
+  stockStatus: z.string().optional(),
+  featuredImage: z.string().optional().nullable(),
+  gallery: z.array(z.string()).optional(),
+  inventoryItems: z.any().optional()
+});
+
+const productSchema = z.object({
+  name: z.string().min(1, 'Product name is required'),
+  slug: z.string().optional(),
+  description: z.string().optional(),
+  categoryId: z.string().optional(),
+  collectionId: z.string().optional(),
+  sizeGuideEnabled: z.boolean().optional(),
+  sizeGuideContent: z.string().optional().nullable(),
+  sizeGuideImageUrl: z.string().optional().nullable(),
+  variants: z.object({
+    create: z.array(productVariantSchema).optional(),
+    update: z.array(z.any()).optional(),
+    delete: z.array(z.any()).optional(),
+    deleteMany: z.any().optional()
+  }).optional()
+});
+
   async createProduct(req: Request, res: Response) {
     try {
-      const product = await productService.createProduct(req.body);
+      const validatedData = productSchema.parse(req.body);
+      const product = await productService.createProduct(validatedData);
       res.status(201).json(product);
     } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ error: 'Validation Error', details: error.errors });
+        return;
+      }
       res.status(400).json({ error: error.message || 'Bad Request' });
     }
   }
@@ -89,9 +126,14 @@ export class ProductController {
   async updateProduct(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const product = await productService.updateProduct(id as string, req.body);
+      const validatedData = productSchema.parse(req.body);
+      const product = await productService.updateProduct(id as string, validatedData);
       res.status(200).json(product);
     } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ error: 'Validation Error', details: error.errors });
+        return;
+      }
       res.status(400).json({ error: error.message || 'Bad Request' });
     }
   }
