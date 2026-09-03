@@ -37,6 +37,7 @@ export const variantBasicSelect = {
         select: {
           name: true,
           discount: true,
+          status: true,
           startDate: true,
           endDate: true
         }

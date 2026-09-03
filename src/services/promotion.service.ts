@@ -1,4 +1,5 @@
 import prisma from '../config/prisma';
+import { invalidateCache } from '../utils/cache.util';
 
 export const promotionService = {
   // --- Coupons ---
@@ -81,7 +82,7 @@ export const promotionService = {
   },
 
   async createFlashSale(data: any) {
-    return prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       const flashSale = await tx.flashSale.create({
         data: {
           name: data.name,
@@ -105,10 +106,13 @@ export const promotionService = {
 
       return flashSale;
     });
+
+    await invalidateCache('product*');
+    return result;
   },
 
   async updateFlashSale(id: string, data: any) {
-    return prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       const flashSale = await tx.flashSale.update({
         where: { id },
         data: {
@@ -138,9 +142,14 @@ export const promotionService = {
 
       return flashSale;
     });
+
+    await invalidateCache('product*');
+    return result;
   },
 
   async deleteFlashSale(id: string) {
-    return prisma.flashSale.delete({ where: { id } });
+    const result = await prisma.flashSale.delete({ where: { id } });
+    await invalidateCache('product*');
+    return result;
   }
 };
