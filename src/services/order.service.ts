@@ -216,7 +216,13 @@ export const orderService = {
     if (customerId) where.customerId = customerId;
     if (type) where.type = type;
     if (search) {
-      where.orderNumber = { contains: search, mode: 'insensitive' };
+      where.OR = [
+        { orderNumber: { contains: search, mode: 'insensitive' } },
+        { trackingNumber: { contains: search, mode: 'insensitive' } },
+        { customer: { firstName: { contains: search, mode: 'insensitive' } } },
+        { customer: { lastName: { contains: search, mode: 'insensitive' } } },
+        { customer: { phone: { contains: search, mode: 'insensitive' } } }
+      ];
     }
     
     // Gateway filtering: COD, BANK_TRANSFER, CARD_MANUAL for manual methods
