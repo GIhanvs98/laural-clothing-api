@@ -164,41 +164,6 @@ export const trackShipment = async (req: Request, res: Response) => {
   }
 };
 
-// POST /api/inventory/shipping/webhook
-export const fardarWebhook = async (req: Request, res: Response) => {
-  try {
-    console.log('[Webhook] Fardar event received:', req.body);
-    const { tracking_number, status } = req.body;
-
-    if (tracking_number && status) {
-      // Find the order with this tracking number
-      const order = await prisma.order.findFirst({
-        where: { trackingNumber: tracking_number }
-      });
-
-      if (order) {
-        // Map Fardar status to our internal status if applicable
-        let newStatus = order.status;
-        if (status === 'DELIVERED') newStatus = 'DELIVERED';
-        else if (status === 'RETURNED') newStatus = 'CANCELLED'; // or some returned status
-
-        if (newStatus !== order.status) {
-          await prisma.order.update({
-            where: { id: order.id },
-            data: { status: newStatus }
-          });
-          console.log(`[Webhook] Order ${order.id} status updated to ${newStatus}`);
-        }
-      } else {
-        console.warn(`[Webhook] No order found for tracking number: ${tracking_number}`);
-      }
-    }
-
-    res.status(200).send('OK');
-  } catch (e: any) {
-    console.error('[Webhook] Error processing Fardar event:', e);
-    res.status(500).json({ error: e.message });
-  }
 };
 
 // POST /api/inventory/reserve

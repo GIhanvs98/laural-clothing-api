@@ -9,6 +9,7 @@ import { errorHandler, AppError } from "./middlewares/errorHandler";
 import { globalApiLimiter } from "./middlewares/rateLimiter.middleware";
 import { csrfMiddleware } from "./middlewares/csrf.middleware";
 import { registerScheduledJobs } from "./jobs/scheduler";
+import { initFardarSync } from "./cron/fardarSync.cron";
 import { sanitizeMiddleware } from "./middlewares/sanitize.middleware";
 import { emergencyKillSwitch } from "./middlewares/killSwitch.middleware";
 
@@ -178,6 +179,7 @@ app.listen(PORT as number, '0.0.0.0', async () => {
 
   // Register background cron jobs
   registerScheduledJobs();
+  initFardarSync();
 });
 
 export default app;

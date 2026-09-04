@@ -13,7 +13,6 @@ import {
   updateTransferStatus,
   createShipment,
   trackShipment,
-  fardarWebhook,
   reserveStock,
   releaseStock
 } from '../controllers/inventory.controller';
@@ -40,6 +39,5 @@ router.put('/transfers/:id/status', authenticateJWT, requirePermission("inventor
 // Fardar Shipping integration
 router.post('/shipping/create', authenticateJWT, requirePermission("shipping:dispatch_fardar"), auditLog('Shipment', 'CREATE'), createShipment);
 router.get('/shipping/:trackingNumber', authenticateJWT, requirePermission("shipping:view_queue"), trackShipment);
-router.post('/shipping/webhook', fardarWebhook);
 
 export default router;

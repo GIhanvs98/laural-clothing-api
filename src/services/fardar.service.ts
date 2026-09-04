@@ -26,6 +26,7 @@ export const FardarService = {
     
     const apiUrl = process.env.FARDAR_API_URL;
     const apiKey = process.env.FARDAR_API_KEY;
+    const clientId = process.env.FARDAR_CLIENT_ID;
 
     if (!apiUrl || !apiKey) {
       console.warn('[FardarService] Missing FARDAR_API_URL or FARDAR_API_KEY. Falling back to mock.');
@@ -47,6 +48,7 @@ export const FardarService = {
         {
           headers: {
             'Authorization': `Bearer ${apiKey}`,
+            'Client-ID': clientId || '',
             'Content-Type': 'application/json'
           }
         }
@@ -72,6 +74,7 @@ export const FardarService = {
     
     const apiUrl = process.env.FARDAR_API_URL;
     const apiKey = process.env.FARDAR_API_KEY;
+    const clientId = process.env.FARDAR_CLIENT_ID;
 
     if (!apiUrl || !apiKey) {
       return this.mockTrackShipment(trackingNumber);
@@ -80,7 +83,8 @@ export const FardarService = {
     try {
       const response = await axios.get(`${apiUrl}/shipments/${trackingNumber}/track`, {
         headers: {
-          'Authorization': `Bearer ${apiKey}`
+          'Authorization': `Bearer ${apiKey}`,
+          'Client-ID': clientId || ''
         }
       });
 
