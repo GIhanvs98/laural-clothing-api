@@ -308,10 +308,13 @@ export const orderService = {
         if (shipment.success) {
           dataToUpdate.trackingNumber = shipment.trackingNumber;
           dataToUpdate.labelUrl = shipment.labelUrl;
+        } else {
+          console.error("Fardar shipment returned failure:", shipment.message);
+          throw new Error(`Fardar API Error: ${shipment.message}`);
         }
-      } catch (err) {
-        console.error("Failed to create Fardar shipment:", err);
-        // Continue updating status even if shipment creation fails or could throw depending on requirement
+      } catch (err: any) {
+        console.error("Failed to create Fardar shipment (Network/Internal):", err);
+        throw new Error(err.message || "Failed to create Fardar shipment");
       }
     }
 
