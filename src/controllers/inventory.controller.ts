@@ -164,8 +164,6 @@ export const trackShipment = async (req: Request, res: Response) => {
   }
 };
 
-};
-
 // POST /api/inventory/reserve
 export const reserveStock = async (req: Request, res: Response) => {
   try {

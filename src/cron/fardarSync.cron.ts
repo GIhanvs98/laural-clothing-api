@@ -1,7 +1,7 @@
 import cron from 'node-cron';
 import prisma from '../config/prisma';
 import { FardarService } from '../services/fardar.service';
-import { OrderService } from '../services/order.service';
+import { orderService } from '../services/order.service';
 
 // Run every 6 hours
 export const initFardarSync = () => {
@@ -32,7 +32,7 @@ export const initFardarSync = () => {
 
           if (newStatus !== order.status) {
             console.log(`[Cron] Updating order ${order.id} status to ${newStatus}`);
-            await OrderService.updateOrderStatus(order.id, newStatus);
+            await orderService.updateOrderStatus(order.id, newStatus);
           }
         } catch (e) {
           console.error(`[Cron] Failed to sync order ${order.id} (${order.trackingNumber}):`, e);
