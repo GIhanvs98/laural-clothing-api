@@ -141,3 +141,21 @@ export const trackOrder = async (req: Request, res: Response) => {
     res.status(404).json({ error: error.message || 'Order not found' });
   }
 };
+
+export const trackOrdersByPhone = async (req: Request, res: Response) => {
+  try {
+    const { phone } = req.params;
+    if (!phone) {
+      return res.status(400).json({ error: 'phone is required' });
+    }
+
+    const orders = await orderService.trackOrdersByPhone(phone as string);
+    if (!orders || orders.length === 0) {
+      return res.status(404).json({ error: 'No active orders found for this phone number' });
+    }
+    res.json(orders);
+  } catch (error: any) {
+    console.error(error);
+    res.status(500).json({ error: error.message || 'Failed to track orders' });
+  }
+};

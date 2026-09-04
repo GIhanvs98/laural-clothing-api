@@ -413,13 +413,47 @@ export const orderService = {
     if (order.trackingNumber && order.status === 'DISPATCHED') {
       try {
         const trackingDetails = await FardarService.trackShipment(order.trackingNumber);
-        // Map Fardar status back to our system if needed, or just return it as extra info
-        return { ...order, courierStatus: trackingDetails.status, location: trackingDetails.location };
+        return { ...order, trackingInfo: { status: trackingDetails.status, location: trackingDetails.location } };
       } catch (err) {
         // Ignore fardar errors
       }
     }
 
     return order;
+  },
+
+  async trackOrdersByPhone(phone: string) {
+    const orders = await prisma.order.findMany({
+      where: {
+        OR: [
+          { customer: { phone } },
+          { shippingAddress: { path: ['phone'], equals: phone } }
+        ],
+        status: { notIn: ['DELIVERED', 'CANCELLED'] }
+      },
+      include: { customer: true, items: { include: { variant: { include: { product: true } } } } },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // We can't easily query JSON field exact match with generic findMany without raw query in sqlite/postgres interchangeably.
+    // If the above JSON query fails, we filter in memory as a fallback.
+    // Actually, since Prisma handles JSON filter well in Postgres, it should be fine. But let's simplify:
+    
+    // For each order, fetch tracking info if dispatched
+    const populatedOrders = await Promise.all(
+      orders.map(async (order) => {
+        if (order.trackingNumber && (order.status === 'DISPATCHED' || order.status === 'PROCESSING')) {
+          try {
+            const trackingDetails = await FardarService.trackShipment(order.trackingNumber);
+            return { ...order, trackingInfo: { status: trackingDetails.status, location: trackingDetails.location } };
+          } catch (err) {
+            return order;
+          }
+        }
+        return order;
+      })
+    );
+
+    return populatedOrders;
   }
 };
