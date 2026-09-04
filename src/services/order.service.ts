@@ -274,7 +274,7 @@ export const orderService = {
     return order;
   },
 
-  async updateOrderStatus(id: string, status: string) {
+  async updateOrderStatus(id: string, status: string, weightKg?: number) {
     // Validate valid status progression or general status updates
     const validStatuses = ['PENDING', 'PROCESSING', 'DISPATCHED', 'DELIVERED', 'CANCELLED'];
     if (!validStatuses.includes(status)) {
@@ -300,6 +300,7 @@ export const orderService = {
         customerPhone: order.customer?.phone || shippingAddress?.phone || 'Unknown',
         customerAddress: shippingAddress ? `${shippingAddress.addressLine1} ${shippingAddress.addressLine2 || ''}` : 'Unknown',
         city: shippingAddress?.city || 'Unknown',
+        weightKg: weightKg || 1.0,
         codAmount: order.paymentMethod === 'COD' ? order.total : 0
       };
 

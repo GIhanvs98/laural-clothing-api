@@ -99,14 +99,14 @@ export const getOrderById = async (req: Request, res: Response) => {
 export const updateOrderStatus = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, weightKg } = req.body;
     
     if (!id) return res.status(400).json({ error: 'Order ID is required' });
     if (!status) {
       return res.status(400).json({ error: 'Status is required' });
     }
 
-    const order = await orderService.updateOrderStatus(id as string, status as string);
+    const order = await orderService.updateOrderStatus(id as string, status as string, weightKg as number);
     res.json(order);
   } catch (error: any) {
     console.error(error);
