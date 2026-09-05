@@ -383,6 +383,7 @@ model Order {
   paymentStatus       String               @default("UNPAID")
   subtotal            Float
   shippingFee         Float
+  discount            Float                @default(0)
   tax                 Float                @default(0)
   total               Float
   shippingAddress     Json?
