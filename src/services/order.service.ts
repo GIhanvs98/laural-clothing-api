@@ -12,7 +12,9 @@ export interface QuickDispatchPayload {
     lastName: string;
     addressLine1: string;
     addressLine2?: string;
+    addressLine3?: string;
     city: string;
+    district?: string;
     postalCode?: string;
   };
   branchId: string;
@@ -22,6 +24,7 @@ export interface QuickDispatchPayload {
     // Removed client-provided prices, we calculate server-side
   }[];
   paymentMethod: string; // 'COD', 'BANK_TRANSFER', 'CARD_MANUAL'
+  discount?: number;
 }
 
 export const orderService = {
@@ -89,7 +92,9 @@ export const orderService = {
             lastName: data.customer.lastName,
             addressLine1: data.customer.addressLine1,
             addressLine2: data.customer.addressLine2,
+            addressLine3: data.customer.addressLine3,
             city: data.customer.city,
+            district: data.customer.district,
             postalCode: data.customer.postalCode,
             phone: data.customer.phone,
             isDefault: true
@@ -159,8 +164,9 @@ export const orderService = {
       }
 
       const shippingFee = 400; // Flat fee or calculate based on logic
+      const discount = data.discount || 0;
       const tax = 0;
-      const total = subtotal + shippingFee + tax;
+      const total = subtotal + shippingFee + tax - discount;
 
       // 5. Create Order
       const paymentStatus = data.paymentMethod === 'COD' ? 'UNPAID' : 'PAID';
