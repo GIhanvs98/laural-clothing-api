@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { checkoutService } from '../services/checkout.service';
 import { velocityService } from '../services/velocity.service';
+import fs from 'fs';
 
 const getIdentifier = (req: Request) => {
   const sessionId = req.headers['x-session-id'] as string;
@@ -117,6 +118,8 @@ export const initiateCheckout = async (req: Request, res: Response) => {
 
     res.status(201).json(order);
   } catch (error: any) {
+    console.error("CHECKOUT 500 ERROR: ", error);
+    fs.appendFileSync('checkout-error.log', new Date().toISOString() + ': ' + (error.stack || error.message) + '\n');
     res.status(500).json({ error: error.message });
   }
 };

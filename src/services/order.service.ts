@@ -304,10 +304,13 @@ export const orderService = {
         orderId: order.orderNumber,
         customerName: order.customer?.firstName ? `${order.customer.firstName} ${order.customer.lastName || ''}` : shippingAddress?.firstName + ' ' + (shippingAddress?.lastName || ''),
         customerPhone: order.customer?.phone || shippingAddress?.phone || 'Unknown',
-        customerAddress: shippingAddress ? `${shippingAddress.addressLine1} ${shippingAddress.addressLine2 || ''}` : 'Unknown',
+        customerAddress1: shippingAddress?.addressLine1 || 'Unknown',
+        customerAddress2: shippingAddress?.addressLine2 || '',
+        customerAddress3: shippingAddress?.addressLine3 || '',
         city: shippingAddress?.city || 'Unknown',
+        district: shippingAddress?.district || shippingAddress?.city || 'Unknown',
         weightKg: weightKg || 1.0,
-        codAmount: order.paymentMethod === 'COD' ? order.total : 0
+        codAmount: (order.paymentMethod?.toUpperCase() === 'COD') ? Number(order.total) : 0
       };
 
       try {
@@ -317,7 +320,7 @@ export const orderService = {
           dataToUpdate.labelUrl = shipment.labelUrl;
         } else {
           console.error("Fardar shipment returned failure:", shipment.message);
-          throw new Error(`Fardar API Error: ${shipment.message}`);
+          throw new Error(shipment.message);
         }
       } catch (err: any) {
         console.error("Failed to create Fardar shipment (Network/Internal):", err);
@@ -455,5 +458,34 @@ export const orderService = {
     );
 
     return populatedOrders;
+  },
+
+  async updateOrderFromFardarWebhook(trackingNumber: string, statusText: string, lastUpdated?: string) {
+    // Map Fardar text statuses to our enum if applicable, e.g. "DELIVERED"
+    // "107 - Delivered" might come as "Delivered", "108 - Returned"
+    const order = await prisma.order.findFirst({
+      where: { trackingNumber }
+    });
+
+    if (!order) {
+      console.warn(`[Webhook] Order not found for tracking number: ${trackingNumber}`);
+      return;
+    }
+
+    let internalStatus = order.status;
+    const normalized = statusText.toUpperCase();
+    if (normalized.includes('DELIVERED')) internalStatus = 'DELIVERED';
+    else if (normalized.includes('CANCELLED')) internalStatus = 'CANCELLED';
+    else if (normalized.includes('RETURNED')) internalStatus = 'RETURNED'; // Or CANCELLED based on logic
+
+    await prisma.order.update({
+      where: { id: order.id },
+      data: {
+        status: internalStatus,
+        updatedAt: lastUpdated ? new Date(lastUpdated) : new Date()
+      }
+    });
+
+    console.log(`[Webhook] Order ${order.id} updated to ${internalStatus} via Fardar Webhook`);
   }
 };

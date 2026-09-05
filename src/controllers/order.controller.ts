@@ -159,3 +159,23 @@ export const trackOrdersByPhone = async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message || 'Failed to track orders' });
   }
 };
+
+export const fardarWebhook = async (req: Request, res: Response) => {
+  try {
+    // Fardar Reverse API payload
+    const { waybill_id, delivery_status, last_update_time } = req.body;
+    
+    if (!waybill_id) {
+      return res.status(400).json({ error: 'waybill_id is required' });
+    }
+
+    // Call service to update the order
+    await orderService.updateOrderFromFardarWebhook(waybill_id, delivery_status, last_update_time);
+    
+    // Fardar expects a 200 OK
+    res.status(200).send('OK');
+  } catch (error: any) {
+    console.error('Fardar Webhook Error:', error);
+    res.status(500).json({ error: error.message || 'Failed to process webhook' });
+  }
+};

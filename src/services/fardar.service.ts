@@ -4,8 +4,11 @@ export interface ShippingDetails {
   orderId: string;
   customerName: string;
   customerPhone: string;
-  customerAddress: string;
+  customerAddress1: string;
+  customerAddress2: string;
+  customerAddress3: string;
   city: string;
+  district: string;
   weightKg?: number;
   codAmount?: number;
 }
@@ -28,38 +31,67 @@ export const FardarService = {
     const apiKey = process.env.FARDAR_API_KEY;
     const clientId = process.env.FARDAR_CLIENT_ID;
 
-    if (!apiUrl || !apiKey) {
-      console.warn('[FardarService] Missing FARDAR_API_URL or FARDAR_API_KEY. Falling back to mock.');
+    if (!apiUrl || !apiKey || !clientId) {
+      console.warn('[FardarService] Missing FARDAR credentials. Falling back to mock.');
       return this.mockCreateShipment();
     }
 
     try {
+      const data = new URLSearchParams();
+      data.append('client_id', clientId);
+      data.append('api_key', apiKey);
+      data.append('order_id', details.orderId);
+      data.append('parcel_weight', (details.weightKg || 1).toString());
+      data.append('parcel_description', `Order ${details.orderId}`);
+      data.append('recipient_name', details.customerName);
+      data.append('recipient_contact_1', details.customerPhone);
+      
+      // Combine address lines for Fardar's single recipient_address field
+      const fullAddress = [details.customerAddress1, details.customerAddress2, details.customerAddress3, details.district]
+        .filter(Boolean)
+        .join(', ');
+      
+      data.append('recipient_address', fullAddress);
+      data.append('recipient_city', details.city);
+      data.append('amount', (details.codAmount || 0).toString());
+      data.append('exchange', '0');
+
+      console.log('[FardarService] REQUEST URL:', `${apiUrl}/new_api_v1.php`);
+      console.log(
+        '[FardarService] REQUEST DATA:',
+        Object.fromEntries(data.entries())
+      );
+
       const response = await axios.post(
-        `${apiUrl}/shipments`,
-        {
-          reference: details.orderId,
-          recipient_name: details.customerName,
-          recipient_phone: details.customerPhone,
-          recipient_address: details.customerAddress,
-          recipient_city: details.city,
-          weight: details.weightKg || 1,
-          cod_amount: details.codAmount || 0,
-        },
+        `${apiUrl}/new_api_v1.php`,
+        data,
         {
           headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Client-ID': clientId || '',
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/x-www-form-urlencoded'
           }
         }
       );
 
-      return {
-        success: true,
-        trackingNumber: response.data.tracking_number,
-        labelUrl: response.data.label_url,
-        message: 'Shipment created successfully'
-      };
+      console.log(
+        '[FardarService] RESPONSE:',
+        JSON.stringify(response.data, null, 2)
+      );
+
+      const trackingId = response.data?.waybill_id || response.data?.waybill_no;
+      const status = String(response.data?.status);
+
+      if (status === '200' && trackingId) {
+        return {
+          success: true,
+          trackingNumber: trackingId,
+          message: 'Shipment created successfully'
+        };
+      } else {
+        return {
+          success: false,
+          message: `Fardar API Error: ${JSON.stringify(response.data)}`
+        };
+      }
     } catch (error: any) {
       console.error('[FardarService] API Error creating shipment:', error.response?.data || error.message);
       return {
@@ -76,23 +108,27 @@ export const FardarService = {
     const apiKey = process.env.FARDAR_API_KEY;
     const clientId = process.env.FARDAR_CLIENT_ID;
 
-    if (!apiUrl || !apiKey) {
+    if (!apiUrl || !apiKey || !clientId) {
       return this.mockTrackShipment(trackingNumber);
     }
 
     try {
-      const response = await axios.get(`${apiUrl}/shipments/${trackingNumber}/track`, {
+      const data = new URLSearchParams();
+      data.append('client_id', clientId);
+      data.append('api_key', apiKey);
+      data.append('waybill_id', trackingNumber);
+
+      const response = await axios.post(`${apiUrl}/existing_waybill_api_v1.php`, data, {
         headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Client-ID': clientId || ''
+          'Content-Type': 'application/x-www-form-urlencoded'
         }
       });
 
       return {
         trackingNumber,
-        status: response.data.status,
-        lastUpdated: response.data.updated_at,
-        location: response.data.location
+        status: response.data?.status,
+        lastUpdated: new Date().toISOString(),
+        location: 'Unknown'
       };
     } catch (error: any) {
       console.error('[FardarService] API Error tracking shipment:', error.response?.data || error.message);
