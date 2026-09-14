@@ -33,7 +33,7 @@ export const getMetaCatalogFeed = async (req: Request, res: Response) => {
         const imageLink = variant.featuredImage || product.variants[0]?.featuredImage || `${storeUrl}/placeholder.jpg`;
         const price = variant.salePrice ? variant.salePrice : variant.price;
         const availability = variant.quantity > 0 ? 'in stock' : 'out of stock';
-        const brand = 'SERAMAADUWEN.LK';
+        const brand = 'Seramaaduwen';
 
         xml += `    <item>
       <g:id><![CDATA[${id}]]></g:id>
