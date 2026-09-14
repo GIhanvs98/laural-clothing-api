@@ -283,7 +283,7 @@ export class RoleService {
       });
 
       if (superAdminRole) {
-        const adminEmail = "admin@laural.lk";
+        const adminEmail = "admin@seramaaduwen.lk";
         const existingAdmin = await prisma.user.findUnique({
           where: { email: adminEmail },
         });
@@ -617,7 +617,7 @@ export class RoleService {
       throw new AppError("A user with this email address already exists.", 400);
     }
 
-    const passwordToHash = data.password || "LauralStaff@2026";
+    const passwordToHash = data.password || "SeramaaduwenStaff@2026";
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(passwordToHash, salt);
 

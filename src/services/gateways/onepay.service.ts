@@ -60,7 +60,7 @@ export const onepayService = {
     const shippingAddr = (order.shippingAddress as any) || {};
     const firstName = customerDetails?.firstName || shippingAddr.firstName || 'Customer';
     const lastName = customerDetails?.lastName || shippingAddr.lastName || 'Valued';
-    const email = customerDetails?.email || 'customer@laural.lk';
+    const email = customerDetails?.email || 'customer@seramaaduwen.lk';
     let rawPhone = customerDetails?.phone || shippingAddr.phone || '0770000000';
     // Clean phone number: remove non-digits (or keep leading + if present)
     const phone = rawPhone.replace(/[^\d+]/g, '');

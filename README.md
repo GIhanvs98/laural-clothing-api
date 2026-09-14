@@ -1,6 +1,6 @@
-# Laural Clothing - Backend (Commerce API)
+# SERAMAADUWEN.LK - Backend (Commerce API)
 
-This repository serves as the central API and single source of truth for the Laural Clothing platform. It handles all business logic, data persistence, and external integrations.
+This repository serves as the central API and single source of truth for the SERAMAADUWEN.LK platform. It handles all business logic, data persistence, and external integrations.
 
 ## Tech Stack
 - **Framework**: Express.js (Node.js 22)

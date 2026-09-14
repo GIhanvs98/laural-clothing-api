@@ -3,10 +3,10 @@ import bcrypt from 'bcryptjs';
 
 async function seed() {
   const usersToSeed = [
-    { email: 'superadmin@laural.com', role: 'Super Admin', name: 'Super Admin' },
-    { email: 'branchadmin@laural.com', role: 'Branch Admin', name: 'Branch Admin' },
-    { email: 'cashier@laural.com', role: 'Cashier', name: 'Cashier' },
-    { email: 'onlinesales@laural.com', role: 'Customer Support', name: 'Online Sales' },
+    { email: 'superadmin@seramaaduwen.lk', role: 'Super Admin', name: 'Super Admin' },
+    { email: 'branchadmin@seramaaduwen.lk', role: 'Branch Admin', name: 'Branch Admin' },
+    { email: 'cashier@seramaaduwen.lk', role: 'Cashier', name: 'Cashier' },
+    { email: 'onlinesales@seramaaduwen.lk', role: 'Customer Support', name: 'Online Sales' },
   ];
 
   const password = await bcrypt.hash('Password123!', 10);

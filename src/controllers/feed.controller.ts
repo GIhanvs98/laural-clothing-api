@@ -11,12 +11,12 @@ export const getMetaCatalogFeed = async (req: Request, res: Response) => {
       orderBy: { createdAt: 'desc' }
     });
 
-    const storeUrl = process.env.STORE_URL || 'https://laural.com';
+    const storeUrl = process.env.STORE_URL || 'https://seramaaduwen.lk';
 
     let xml = `<?xml version="1.0" encoding="UTF-8"?>
 <rss xmlns:g="http://base.google.com/ns/1.0" version="2.0">
   <channel>
-    <title>Laural Clothing Product Catalog</title>
+    <title>SERAMAADUWEN.LK Product Catalog</title>
     <link>${storeUrl}</link>
     <description>Dynamic product feed for Meta Ads</description>
 `;
@@ -33,7 +33,7 @@ export const getMetaCatalogFeed = async (req: Request, res: Response) => {
         const imageLink = variant.featuredImage || product.variants[0]?.featuredImage || `${storeUrl}/placeholder.jpg`;
         const price = variant.salePrice ? variant.salePrice : variant.price;
         const availability = variant.quantity > 0 ? 'in stock' : 'out of stock';
-        const brand = 'Laural';
+        const brand = 'SERAMAADUWEN.LK';
 
         xml += `    <item>
       <g:id><![CDATA[${id}]]></g:id>

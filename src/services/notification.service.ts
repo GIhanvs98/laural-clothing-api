@@ -10,7 +10,7 @@ const vapidKeys = {
 };
 
 webpush.setVapidDetails(
-  'mailto:admin@laural.lk',
+  'mailto:admin@seramaaduwen.lk',
   vapidKeys.publicKey,
   vapidKeys.privateKey
 );
@@ -21,7 +21,7 @@ export class NotificationService {
    */
   static async sendBulkSms(numbers: string[], message: string, flashSaleId?: string) {
     const apiKey = process.env.SEND_LK_API_KEY;
-    const senderId = process.env.SEND_LK_SENDER_ID || 'LAURAL';
+    const senderId = process.env.SEND_LK_SENDER_ID || 'SERAMAADUWEN.LK';
 
     if (!apiKey) {
       console.warn('SEND_LK_API_KEY is missing. Mocking SMS send...');

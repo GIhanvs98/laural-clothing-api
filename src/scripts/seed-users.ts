@@ -25,10 +25,10 @@ async function main() {
 
   // Users to create
   const usersData = [
-    { email: 'superadmin@laural.com', name: 'Super Admin', role: 'Super Admin' },
-    { email: 'branchadmin@laural.com', name: 'Branch Admin', role: 'Branch Admin' },
-    { email: 'cashier@laural.com', name: 'Cashier', role: 'Cashier' },
-    { email: 'onlinesales@laural.com', name: 'Online Sales', role: 'Online Sales' },
+    { email: 'superadmin@seramaaduwen.lk', name: 'Super Admin', role: 'Super Admin' },
+    { email: 'branchadmin@seramaaduwen.lk', name: 'Branch Admin', role: 'Branch Admin' },
+    { email: 'cashier@seramaaduwen.lk', name: 'Cashier', role: 'Cashier' },
+    { email: 'onlinesales@seramaaduwen.lk', name: 'Online Sales', role: 'Online Sales' },
   ];
 
   const salt = await bcrypt.genSalt(10);

@@ -252,10 +252,10 @@ async function main() {
   console.log("Seeding Default Users...");
   const defaultPassword = await bcrypt.hash("Password123!", 10);
   const usersToCreate = [
-    { name: "Super Admin", email: "superadmin@laural.com", roleName: "Super Admin" },
-    { name: "Branch Admin", email: "branchadmin@laural.com", roleName: "Branch Admin" },
-    { name: "Branch Cashier", email: "cashier@laural.com", roleName: "Branch Cashier" },
-    { name: "Online Sales", email: "onlinesales@laural.com", roleName: "Online Sales" },
+    { name: "Super Admin", email: "superadmin@seramaaduwen.lk", roleName: "Super Admin" },
+    { name: "Branch Admin", email: "branchadmin@seramaaduwen.lk", roleName: "Branch Admin" },
+    { name: "Branch Cashier", email: "cashier@seramaaduwen.lk", roleName: "Branch Cashier" },
+    { name: "Online Sales", email: "onlinesales@seramaaduwen.lk", roleName: "Online Sales" },
   ];
 
   for (const userDef of usersToCreate) {
