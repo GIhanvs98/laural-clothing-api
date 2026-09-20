@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { handleWebhook, getPaymentTransactions, getPaymentKpis, retryPayment, getPaymentMethods } from '../controllers/payment.controller';
+import { handleWebhook, getPaymentTransactions, getPaymentKpis, retryPayment, getPaymentMethods, getPaymentStatus } from '../controllers/payment.controller';
 
 const router = Router();
 
@@ -12,5 +12,6 @@ router.post('/retry/:orderNumber', retryPayment);
 router.get('/transactions', getPaymentTransactions);
 router.get('/kpis', getPaymentKpis);
 router.get('/methods', getPaymentMethods);
+router.get('/status/:orderNumber', getPaymentStatus);
 
 export default router;

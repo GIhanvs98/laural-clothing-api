@@ -32,6 +32,39 @@ export const paymentService = {
       };
     }
 
+    if (method.toLowerCase() === 'koko') {
+      const { kokoProvider } = require('./providers/koko.provider');
+      const baseUrl = process.env.API_BASE_URL || 'http://localhost:5000';
+      const returnUrl = `${baseUrl}/api/payments/return?orderId=${order.orderNumber}`;
+      const cancelUrl = `${baseUrl}/api/payments/cancel?orderId=${order.orderNumber}`;
+      const responseUrl = `${baseUrl}/api/payments/webhook/koko`;
+      
+      const customer = {
+         firstName: 'Customer', // Would get from order.customer if populated
+         lastName: 'Name',
+         email: 'customer@example.com' 
+      };
+
+      const kokoData = await kokoProvider.createPaymentParams(
+        order.orderNumber, 
+        order.total, 
+        'LKR', 
+        customer, 
+        returnUrl, 
+        cancelUrl, 
+        responseUrl
+      );
+      
+      return {
+         success: true,
+         method: 'KOKO',
+         isFormRedirect: true,
+         formData: kokoData.params,
+         redirectUrl: kokoData.url,
+         message: 'Redirecting to Koko'
+      };
+    }
+
     // Generate a mock redirect URL for our internal mock gateway
     const redirectUrl = `/mock-gateway?method=${method.toLowerCase()}&orderNumber=${order.orderNumber}&amount=${order.total}`;
 
@@ -44,6 +77,50 @@ export const paymentService = {
   },
 
   async handleWebhook(provider: string, payload: any, signature?: string) {
+    if (provider.toLowerCase() === 'koko') {
+      const { kokoProvider } = require('./providers/koko.provider');
+      const verification = kokoProvider.verifyWebhook(payload);
+      
+      const order = await prisma.order.findUnique({ where: { orderNumber: verification.orderId } });
+      if (!order) throw new Error('Order not found from webhook');
+
+      // Check idempotency for Koko
+      const eventId = `koko_${verification.trnId}_${verification.status}`;
+      const existingKey = await prisma.idempotencyKey.findUnique({ where: { key: eventId } });
+      if (existingKey) {
+        console.log(`[Webhook] Duplicate Koko event ${eventId} ignored.`);
+        return { success: true, duplicate: true };
+      }
+      
+      const dbStatus = verification.status === 'SUCCESS' ? 'Paid' : (verification.status === 'FAILED' || verification.status === 'FAILURE' ? 'Failed' : 'Pending');
+
+      await prisma.paymentTransaction.create({
+        data: {
+          orderId: order.id,
+          customerId: order.customerId,
+          gateway: 'koko',
+          method: 'koko',
+          amount: order.total,
+          status: dbStatus
+        }
+      });
+
+      if (verification.status === 'SUCCESS') {
+        await prisma.order.update({
+          where: { id: order.id },
+          data: { paymentStatus: 'PAID', status: 'PROCESSING' }
+        });
+      } else if (verification.status === 'FAILED' || verification.status === 'FAILURE') {
+        await prisma.order.update({
+          where: { id: order.id },
+          data: { paymentStatus: 'FAILED' }
+        });
+      }
+
+      await prisma.idempotencyKey.create({ data: { key: eventId } });
+      return { success: true };
+    }
+
     if (!signature) {
       throw new Error('Missing webhook signature');
     }

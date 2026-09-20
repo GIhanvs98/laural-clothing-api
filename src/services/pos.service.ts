@@ -223,13 +223,15 @@ export const posService = {
       });
       if (!branch) throw new Error(`Branch ${data.branchId} not found`);
 
+      const isKoko = data.paymentMethod.toLowerCase() === 'koko';
+
       // 2. Create Order
       const order = await tx.order.create({
         data: {
           orderNumber,
           type: 'POS',
-          status: 'DELIVERED', // POS orders are delivered instantly
-          paymentStatus: 'PAID',
+          status: isKoko ? 'PENDING' : 'DELIVERED', // POS orders are delivered instantly unless async payment
+          paymentStatus: isKoko ? 'PENDING' : 'PAID',
           paymentMethod: data.paymentMethod,
           subtotal: calculatedSubtotal,
           tax: calculatedTax,
