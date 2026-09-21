@@ -33,6 +33,7 @@ export const createRateLimiter = (endpointName: string, maxAttempts: number, win
       
       if (current > maxAttempts) {
         res.status(429).json({ 
+          success: false,
           message: `Too many requests to ${endpointName}. Please try again later.` 
         });
         return;

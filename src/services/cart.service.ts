@@ -38,6 +38,30 @@ async function signCartImages(cart: any) {
   return cart;
 }
 
+/**
+ * Re-hydrate product.allowedPaymentMethods from DB for each guest cart item.
+ * Guest carts are stored in Redis and the cached product data may be stale if
+ * an admin updated the product's payment method restrictions after the item was added.
+ */
+async function rehydrateGuestCartPaymentMethods(cart: any) {
+  if (!cart?.items?.length) return cart;
+  for (const item of cart.items) {
+    const variantId = item.variantId || item.variant?.id;
+    if (variantId) {
+      const freshProduct = await prisma.productVariant.findUnique({
+        where: { id: variantId },
+        select: { product: { select: { allowedPaymentMethods: true } } }
+      });
+      if (freshProduct?.product) {
+        if (!item.variant) item.variant = {};
+        if (!item.variant.product) item.variant.product = {};
+        item.variant.product.allowedPaymentMethods = freshProduct.product.allowedPaymentMethods;
+      }
+    }
+  }
+  return cart;
+}
+
 // Helper to get fully hydrated variant data for Redis cache
 async function getVariantWithProduct(variantId: string) {
   return prisma.productVariant.findUnique({
@@ -81,7 +105,9 @@ export const cartService = {
       }
       
       if (cartData) {
-        return signCartImages(JSON.parse(cartData));
+        const parsedCart = JSON.parse(cartData);
+        const hydratedCart = await rehydrateGuestCartPaymentMethods(parsedCart);
+        return signCartImages(hydratedCart);
       }
 
       // Create new Redis Cart structure

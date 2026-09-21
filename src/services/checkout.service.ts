@@ -72,11 +72,36 @@ export const checkoutService = {
       const cartStr = await redisClient.get(redisKey);
       if (!cartStr) throw new Error('Guest cart not found');
       cart = JSON.parse(cartStr);
+
+      // Re-hydrate allowedPaymentMethods from DB - Redis cache may be stale if product was updated
+      for (const item of cart.items) {
+        if (item.variantId) {
+          const freshVariant = await prisma.productVariant.findUnique({
+            where: { id: item.variantId },
+            select: { product: { select: { allowedPaymentMethods: true } } }
+          });
+          if (freshVariant?.product) {
+            if (!item.variant) item.variant = {};
+            if (!item.variant.product) item.variant.product = {};
+            item.variant.product.allowedPaymentMethods = freshVariant.product.allowedPaymentMethods;
+          }
+        }
+      }
     } else {
       cart = await prisma.cart.findUnique({
         where: { id: cartId },
         include: {
-          items: { include: { variant: { select: variantBasicSelect } } },
+          items: { 
+            include: { 
+              variant: { 
+                include: {
+                  product: {
+                    select: { allowedPaymentMethods: true }
+                  }
+                } 
+              } 
+            } 
+          },
         },
       });
       if (!cart) throw new Error('Cart not found');
@@ -85,6 +110,20 @@ export const checkoutService = {
     if (!cart || cart.items.length === 0) {
       throw new Error('Cart is empty or not found');
     }
+
+    if (paymentMethod) {
+      for (const item of cart.items) {
+        const allowedMethods = item.variant?.product?.allowedPaymentMethods;
+        if (allowedMethods && allowedMethods.length > 0) {
+          // DB stores methods as PascalCase ("COD","Koko"), paymentMethod from client may be lowercase
+          const normalised = allowedMethods.map((m: string) => m.toLowerCase());
+          if (!normalised.includes(paymentMethod.toLowerCase())) {
+            throw new Error(`Payment method '${paymentMethod}' is not allowed for some items in your cart.`);
+          }
+        }
+      }
+    }
+
 
     // 1. Identity Resolution
     let customer = await prisma.customer.findUnique({

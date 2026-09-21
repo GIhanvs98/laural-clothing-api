@@ -191,8 +191,18 @@ export const inventoryService = {
       update: { quantity: { increment: delta } },
     });
 
-    // We no longer sync ProductVariant.quantity, because inventory is branch-specific.
-    // If needed, we'd sum all branch quantities.
+    // Recalculate total quantity for this variant across all branches
+    const totalInventory = await prisma.inventoryItem.aggregate({
+      where: { variantId },
+      _sum: { quantity: true }
+    });
+    const totalQuantity = totalInventory._sum.quantity || 0;
+    
+    // Sync ProductVariant quantity
+    await prisma.productVariant.update({
+      where: { id: variantId },
+      data: { quantity: totalQuantity }
+    });
 
     const tx = await prisma.inventoryTransaction.create({
       data: {

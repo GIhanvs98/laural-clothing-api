@@ -48,6 +48,7 @@ model Product {
   description       String?
   excerpt           String?
   categoryId        String?
+  allowedPaymentMethods String[]        @default(["COD", "Mintpay", "Koko", "Payzy", "OnePay"])
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
   sizeGuideContent  String?

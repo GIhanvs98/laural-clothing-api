@@ -5,12 +5,21 @@ export class KokoProvider {
   private apiKey = process.env.KOKO_API_KEY || '';
   private apiUrl = process.env.KOKO_API_URL || 'https://qaapi.paykoko.com';
   
+  private formatKey(key: string, type: 'PRIVATE' | 'PUBLIC'): string {
+    key = key.replace(/\\n/g, '\n').trim();
+    if (key && !key.includes('-----BEGIN')) {
+      const formattedKey = key.match(/.{1,64}/g)?.join('\n') || key;
+      return `-----BEGIN ${type === 'PRIVATE' ? 'RSA PRIVATE' : 'PUBLIC'} KEY-----\n${formattedKey}\n-----END ${type === 'PRIVATE' ? 'RSA PRIVATE' : 'PUBLIC'} KEY-----`;
+    }
+    return key;
+  }
+
   private get privateKey(): string {
-    return (process.env.KOKO_PRIVATE_KEY || '').replace(/\\n/g, '\n');
+    return this.formatKey(process.env.KOKO_PRIVATE_KEY || '', 'PRIVATE');
   }
 
   private get publicKey(): string {
-    return (process.env.KOKO_PUBLIC_KEY || '').replace(/\\n/g, '\n');
+    return this.formatKey(process.env.KOKO_PUBLIC_KEY || '', 'PUBLIC');
   }
 
   private sign(dataString: string): string {

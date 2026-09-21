@@ -55,6 +55,7 @@ export const productBasicSelect = {
   description: true,
   excerpt: true,
   status: true,
+  allowedPaymentMethods: true,
   sizeGuideEnabled: true,
   sizeGuideContent: true,
   sizeGuideImageUrl: true,

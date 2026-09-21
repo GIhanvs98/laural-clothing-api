@@ -25,6 +25,7 @@ const productSchema = z.object({
   sizeGuideEnabled: z.boolean().optional(),
   sizeGuideContent: z.string().optional().nullable(),
   sizeGuideImageUrl: z.string().optional().nullable(),
+  allowedPaymentMethods: z.array(z.string()).optional(),
   variants: z.object({
     create: z.array(productVariantSchema).optional(),
     update: z.array(z.any()).optional(),
@@ -127,7 +128,7 @@ export class ProductController {
         res.status(400).json({ error: 'Validation Error', details: [{ message: `The ${target.join(', ')} you provided is already in use. Please use a unique value.` }] });
         return;
       }
-      res.status(400).json({ error: error.message || 'Bad Request' });
+      console.error("CREATE PRODUCT ERROR", error); res.status(400).json({ error: error.message || 'Bad Request' });
     }
   }
 
@@ -138,6 +139,7 @@ export class ProductController {
       const product = await productService.updateProduct(id as string, validatedData as any);
       res.status(200).json(product);
     } catch (error: any) {
+      console.error('[updateProduct] Error:', error?.message, error?.code, error?.stack?.split('\n')[1]);
       if (error instanceof z.ZodError) {
         res.status(400).json({ error: 'Validation Error', details: error.errors });
         return;
@@ -147,7 +149,7 @@ export class ProductController {
         res.status(400).json({ error: 'Validation Error', details: [{ message: `The ${target.join(', ')} you provided is already in use. Please use a unique value.` }] });
         return;
       }
-      res.status(400).json({ error: error.message || 'Bad Request' });
+      console.error("CREATE PRODUCT ERROR", error); res.status(400).json({ error: error.message || 'Bad Request' });
     }
   }
 
@@ -157,7 +159,7 @@ export class ProductController {
       await productService.deleteProduct(id as string);
       res.status(204).send();
     } catch (error: any) {
-      res.status(400).json({ error: error.message || 'Bad Request' });
+      console.error("CREATE PRODUCT ERROR", error); res.status(400).json({ error: error.message || 'Bad Request' });
     }
   }
 
@@ -171,7 +173,7 @@ export class ProductController {
       const result = await productService.bulkEditProducts(productIds, data);
       res.status(200).json(result);
     } catch (error: any) {
-      res.status(400).json({ error: error.message || 'Bad Request' });
+      console.error("CREATE PRODUCT ERROR", error); res.status(400).json({ error: error.message || 'Bad Request' });
     }
   }
 }

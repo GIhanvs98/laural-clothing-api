@@ -2,6 +2,7 @@ import prisma from '../config/prisma';
 import { Prisma } from '@prisma/client';
 import { productWithVariantsSelect } from '../dto/product.dto';
 import { withCache, invalidateCache } from '../utils/cache.util';
+import { inventoryService } from './inventory.service';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
@@ -167,7 +168,7 @@ export class ProductService {
     });
   }
 
-  async createProduct(data: Prisma.ProductCreateInput) {
+  async createProduct(data: any) {
     if (!data.slug) {
       let baseSlug = data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
       let slug = baseSlug;
@@ -178,21 +179,181 @@ export class ProductService {
       }
       data.slug = slug;
     }
+
+    // collectionId is on the CollectionProduct join table, not a direct Product scalar
+    const { collectionId, ...productData } = data;
     
-    const result = await prisma.product.create({
-      data,
+    const variantsData = productData.variants?.create || [];
+    // Extract inventory intent keyed by variant SKU+size+color for reliable post-create matching
+    const pendingInventory: { key: string; items: any[] }[] = [];
+
+    variantsData.forEach((v: any) => {
+      if (v.inventoryItems?.create && v.inventoryItems.create.length > 0) {
+        const key = `${v.sku || ''}|${v.size || ''}|${v.color || ''}`;
+        pendingInventory.push({ key, items: v.inventoryItems.create });
+      }
+      delete v.inventoryItems;
     });
+
+    const result = await prisma.product.create({
+      data: productData,
+      include: { variants: true }
+    });
+
+    for (const pending of pendingInventory) {
+      // Match by SKU first, then fall back to size+color
+      const [sku, size, color] = pending.key.split('|');
+      const variant = result.variants.find(v =>
+        (sku && v.sku === sku) ||
+        ((v.size || '') === size && (v.color || '') === color)
+      );
+      if (variant) {
+        for (const inv of pending.items) {
+          if (inv.quantity >= 0) {
+            await inventoryService.adjustStock({
+              variantId: variant.id,
+              branchId: inv.branchId,
+              type: 'RECEIVE',
+              quantity: inv.quantity,
+              reason: 'Initial Stock Upload'
+            });
+          }
+        }
+      }
+    }
+
     await invalidateCache('product*');
-    return result;
+    
+    // Return the fully updated product with fresh inventory state
+    return prisma.product.findUnique({
+      where: { id: result.id },
+      include: { variants: true }
+    });
   }
 
-  async updateProduct(id: string, data: Prisma.ProductUpdateInput) {
+  async updateProduct(id: string, data: any) {
+    const pendingCreateInventory: { key: string; items: any[] }[] = [];
+    const pendingUpdateInventory: any[] = [];
+    const pendingDeleteInventory: any[] = [];
+
+    // collectionId is on the CollectionProduct join table, not a direct Product scalar - strip it
+    const { collectionId, ...productData } = data;
+
+    if (productData.variants?.create) {
+      productData.variants.create.forEach((v: any) => {
+        if (v.inventoryItems?.create && v.inventoryItems.create.length > 0) {
+          const key = `${v.sku || ''}|${v.size || ''}|${v.color || ''}`;
+          pendingCreateInventory.push({ key, items: v.inventoryItems.create });
+        }
+        delete v.inventoryItems;
+      });
+    }
+
+    if (productData.variants?.update) {
+      productData.variants.update.forEach((v: any) => {
+        const variantId = v.where?.id;
+        if (variantId && v.data?.inventoryItems) {
+           if (v.data.inventoryItems.create) {
+             pendingUpdateInventory.push({ variantId, creates: v.data.inventoryItems.create });
+           }
+           if (v.data.inventoryItems.update) {
+             pendingUpdateInventory.push({ variantId, updates: v.data.inventoryItems.update });
+           }
+           if (v.data.inventoryItems.deleteMany) {
+             pendingDeleteInventory.push({ variantId });
+           }
+           delete v.data.inventoryItems;
+        }
+      });
+    }
+
     const result = await prisma.product.update({
       where: { id },
-      data,
+      data: productData,
+      include: { variants: true }
     });
+
+    // Process new variant inventory - match by SKU/size+color
+    for (const pending of pendingCreateInventory) {
+      const [sku, size, color] = pending.key.split('|');
+      const variant = result.variants.find(v =>
+        (sku && v.sku === sku) ||
+        ((v.size || '') === size && (v.color || '') === color)
+      );
+      if (variant) {
+        for (const inv of pending.items) {
+          if (inv.quantity >= 0) {
+            await inventoryService.adjustStock({
+              variantId: variant.id,
+              branchId: inv.branchId,
+              type: 'RECEIVE',
+              quantity: inv.quantity,
+              reason: 'New Variant Added'
+            });
+          }
+        }
+      }
+    }
+
+    // Process updates
+    for (const pending of pendingUpdateInventory) {
+      if (pending.creates) {
+        for (const inv of pending.creates) {
+          if (inv.quantity >= 0) {
+            await inventoryService.adjustStock({
+              variantId: pending.variantId,
+              branchId: inv.branchId,
+              type: 'RECEIVE',
+              quantity: inv.quantity,
+              reason: 'Branch Stock Added'
+            });
+          }
+        }
+      }
+      if (pending.updates) {
+        for (const update of pending.updates) {
+          // Frontend sends absolute quantity to update to. We need the delta.
+          const existingItem = await prisma.inventoryItem.findUnique({ where: { id: update.where.id } });
+          if (existingItem) {
+            const newQty = update.data.quantity;
+            const delta = newQty - existingItem.quantity;
+            if (delta !== 0) {
+              await inventoryService.adjustStock({
+                variantId: pending.variantId,
+                branchId: existingItem.branchId,
+                type: delta > 0 ? 'RECEIVE' : 'DEDUCT',
+                quantity: Math.abs(delta),
+                reason: 'Admin Override'
+              });
+            }
+          }
+        }
+      }
+    }
+
+    // Process soft-deletions
+    for (const pending of pendingDeleteInventory) {
+      const currentItems = await prisma.inventoryItem.findMany({ where: { variantId: pending.variantId } });
+      for (const item of currentItems) {
+        if (item.quantity > 0) {
+          await inventoryService.adjustStock({
+            variantId: pending.variantId,
+            branchId: item.branchId,
+            type: 'DEDUCT',
+            quantity: item.quantity,
+            reason: 'Variant Soft-Deleted'
+          });
+        }
+      }
+    }
+
     await invalidateCache('product*');
-    return result;
+    
+    // Return the fully updated product with fresh inventory state
+    return prisma.product.findUnique({
+      where: { id: result.id },
+      include: { variants: true }
+    });
   }
 
   async deleteProduct(id: string) {
