@@ -113,8 +113,26 @@ export const paymentService = {
       } else if (verification.status === 'FAILED' || verification.status === 'FAILURE') {
         await prisma.order.update({
           where: { id: order.id },
-          data: { paymentStatus: 'FAILED' }
+          data: { paymentStatus: 'FAILED', status: 'CANCELLED' }
         });
+        // Restore stock
+        const branchId = order.branchId || (await prisma.branch.findFirst({ where: { OR: [{ name: 'Online' }, { code: 'ONLINE' }] } }))?.id;
+        if (branchId) {
+          const { inventoryService } = require('./inventory.service');
+          const orderWithItems = await prisma.order.findUnique({ where: { id: order.id }, include: { items: true } });
+          if (orderWithItems) {
+            for (const item of orderWithItems.items) {
+              await inventoryService.adjustStock({
+                variantId: item.variantId,
+                branchId,
+                type: 'RECEIVE',
+                quantity: item.quantity,
+                reason: 'Payment Failed Restock',
+                reference: order.id
+              });
+            }
+          }
+        }
       }
 
       await prisma.idempotencyKey.create({ data: { key: eventId } });
@@ -186,8 +204,27 @@ export const paymentService = {
         where: { id: order.id },
         data: {
           paymentStatus: 'FAILED',
+          status: 'CANCELLED'
         }
       });
+      // Restore stock
+      const branchId = order.branchId || (await prisma.branch.findFirst({ where: { OR: [{ name: 'Online' }, { code: 'ONLINE' }] } }))?.id;
+      if (branchId) {
+        const { inventoryService } = require('./inventory.service');
+        const orderWithItems = await prisma.order.findUnique({ where: { id: order.id }, include: { items: true } });
+        if (orderWithItems) {
+          for (const item of orderWithItems.items) {
+            await inventoryService.adjustStock({
+              variantId: item.variantId,
+              branchId,
+              type: 'RECEIVE',
+              quantity: item.quantity,
+              reason: 'Payment Failed Restock',
+              reference: order.id
+            });
+          }
+        }
+      }
     }
 
     // Save idempotency key

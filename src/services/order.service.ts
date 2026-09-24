@@ -120,22 +120,14 @@ export const orderService = {
           throw new Error(`Insufficient stock for variant ${item.variantId} in the selected branch.`);
         }
 
-        // Deduct stock
-        await tx.inventoryItem.update({
-          where: { id: inventory.id },
-          data: { quantity: { decrement: item.quantity } }
-        });
-
-        // Record transaction
-        await tx.inventoryTransaction.create({
-          data: {
-            variantId: item.variantId,
-            branchId: data.branchId,
-            type: 'SALE',
-            quantityChange: -item.quantity,
-            reason: 'Quick Dispatch Manual Order'
-          }
-        });
+        // Deduct stock using the unified service to ensure global quantity sync and low stock alerts
+        await inventoryService.adjustStock({
+          variantId: item.variantId,
+          branchId: data.branchId,
+          type: 'DEDUCT',
+          quantity: item.quantity,
+          reason: 'Quick Dispatch Manual Order'
+        }, tx);
       }
 
       // 4. Generate Order Number (e.g. QD-12345)

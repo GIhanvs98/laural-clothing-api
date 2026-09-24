@@ -188,92 +188,108 @@ export const checkoutService = {
       throw new Error('Checkout blocked due to high fraud risk.');
     }
 
-    // 3. Create Order
+    // 3. Setup Branch and Pre-Check Stock
+    let onlineBranch = await prisma.branch.findFirst({
+      where: { OR: [{ name: 'Online' }, { code: 'ONLINE' }] }
+    });
+    
+    if (!onlineBranch) {
+      onlineBranch = await prisma.branch.findFirst({ where: { isActive: true } });
+    }
+    
+    if (!onlineBranch) {
+      throw new Error('No valid branch found to fulfill the order.');
+    }
+
+    // Pre-check stock before doing anything else
+    for (const item of cart.items) {
+      const inv = await prisma.inventoryItem.findUnique({
+        where: { variantId_branchId: { variantId: item.variantId, branchId: onlineBranch.id } }
+      });
+      if (!inv || inv.quantity < item.quantity) {
+        throw new Error(`Insufficient stock for item: ${item.variant?.product?.name || item.variantId}. Available: ${inv?.quantity || 0}, Requested: ${item.quantity}`);
+      }
+    }
+
+    // 4. Create Order & Transactions
     const orderNumber = `LC-${Date.now().toString().slice(-6)}`;
     
-    const order = await prisma.order.create({
-      data: {
-        orderNumber,
-        customerId: customer.id,
-        status: 'PENDING',
-        paymentMethod: paymentMethod || 'COD',
-        paymentStatus: 'UNPAID',
-        subtotal: totals.subtotal,
-        shippingFee: totals.shippingFee,
-        tax: totals.tax,
-        loyaltyDiscount: totals.loyaltyDiscount,
-        total: totals.total,
-        shippingAddress: shippingAddress,
-        fraudScore: fraudEvaluation.fraudScore,
-        riskLevel: fraudEvaluation.riskLevel,
-        fraudSignals: fraudEvaluation.fraudSignals,
-        items: {
-          create: cart.items.map((item: any) => ({
-            variantId: item.variantId,
-            quantity: item.quantity,
-            priceAtPurchase: getEffectivePrice(item.variant),
-          })),
+    const order = await prisma.$transaction(async (tx) => {
+      const createdOrder = await tx.order.create({
+        data: {
+          orderNumber,
+          customerId: customer!.id,
+          status: 'PENDING',
+          paymentMethod: paymentMethod || 'COD',
+          paymentStatus: 'UNPAID',
+          subtotal: totals.subtotal,
+          shippingFee: totals.shippingFee,
+          tax: totals.tax,
+          loyaltyDiscount: totals.loyaltyDiscount,
+          total: totals.total,
+          shippingAddress: shippingAddress,
+          fraudScore: fraudEvaluation.fraudScore,
+          riskLevel: fraudEvaluation.riskLevel,
+          fraudSignals: fraudEvaluation.fraudSignals,
+          items: {
+            create: cart.items.map((item: any) => ({
+              variantId: item.variantId,
+              quantity: item.quantity,
+              priceAtPurchase: getEffectivePrice(item.variant),
+            })),
+          },
         },
-      },
-      include: {
-        items: true,
-      },
-    });
+        include: {
+          items: true,
+        },
+      });
 
-    // 3.1 Deduct Loyalty Points
-    if (loyaltyAccountToUpdate && pointsToRedeem && pointsToRedeem > 0) {
-      await prisma.$transaction([
-        prisma.loyaltyTransaction.create({
+      // Deduct Loyalty Points
+      if (loyaltyAccountToUpdate && pointsToRedeem && pointsToRedeem > 0) {
+        await tx.loyaltyTransaction.create({
           data: {
             accountId: loyaltyAccountToUpdate.id,
             amount: -pointsToRedeem,
             type: 'REDEEMED',
-            reason: `Order #${order.orderNumber}`,
-            orderId: order.id
+            reason: `Order #${createdOrder.orderNumber}`,
+            orderId: createdOrder.id
           }
-        }),
-        prisma.loyaltyAccount.update({
+        });
+        await tx.loyaltyAccount.update({
           where: { id: loyaltyAccountToUpdate.id },
           data: { points: { decrement: pointsToRedeem } }
-        })
-      ]);
-    }
+        });
+      }
+
+      // Deduct Inventory
+      for (const item of cart.items) {
+        await inventoryService.adjustStock({
+          variantId: item.variantId,
+          branchId: onlineBranch!.id,
+          type: 'DEDUCT',
+          quantity: item.quantity,
+          reason: 'Online Order Checkout',
+          reference: createdOrder.id
+        }, tx);
+      }
+
+      // Clean up Cart (DB)
+      if (!isGuest) {
+        await tx.cart.update({
+          where: { id: cartId },
+          data: { status: 'CONVERTED' },
+        });
+      }
+
+      return createdOrder;
+    });
 
     if (fraudEvaluation.riskLevel === 'HIGH') {
       await alertService.sendFraudAlert(order.orderNumber, fraudEvaluation.fraudScore, fraudEvaluation.riskLevel, fraudEvaluation.fraudSignals, cartId);
     }
 
-    // 3.5 Deduct Inventory
-    let onlineBranch = await prisma.branch.findFirst({
-      where: { OR: [{ name: 'Online' }, { code: 'ONLINE' }] }
-    });
-    
-    // Fallback if no online branch exists
-    if (!onlineBranch) {
-      onlineBranch = await prisma.branch.findFirst({ where: { isActive: true } });
-    }
-
-    if (onlineBranch) {
-      for (const item of cart.items) {
-        await inventoryService.adjustStock({
-          variantId: item.variantId,
-          branchId: onlineBranch.id,
-          type: 'DEDUCT',
-          quantity: item.quantity,
-          reason: 'Online Order Checkout',
-          reference: order.id
-        });
-      }
-    }
-
-    // 4. Clean up Cart
     if (isGuest) {
       await redisClient.del(`cart:${cartId}`);
-    } else {
-      await prisma.cart.update({
-        where: { id: cartId },
-        data: { status: 'CONVERTED' },
-      });
     }
 
     // 5. Initiate Payment

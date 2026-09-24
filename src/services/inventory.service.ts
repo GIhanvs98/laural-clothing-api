@@ -181,30 +181,40 @@ export const inventoryService = {
     quantity: number;
     reason?: string;
     reference?: string;
-  }) {
+  }, tx: any = prisma) {
     const { variantId, branchId, type, quantity, reason, reference } = data;
     const delta = type === 'RECEIVE' ? Math.abs(quantity) : -Math.abs(quantity);
 
-    const inv = await prisma.inventoryItem.upsert({
+    // Ensure stock doesn't go below 0 for DEDUCT
+    if (type === 'DEDUCT') {
+      const currentItem = await tx.inventoryItem.findUnique({
+        where: { variantId_branchId: { variantId, branchId } }
+      });
+      if (!currentItem || currentItem.quantity < Math.abs(quantity)) {
+        throw new Error('Insufficient stock for deduction');
+      }
+    }
+
+    const inv = await tx.inventoryItem.upsert({
       where: { variantId_branchId: { variantId, branchId } },
       create: { variantId, branchId, quantity: Math.max(0, delta) },
       update: { quantity: { increment: delta } },
     });
 
     // Recalculate total quantity for this variant across all branches
-    const totalInventory = await prisma.inventoryItem.aggregate({
+    const totalInventory = await tx.inventoryItem.aggregate({
       where: { variantId },
       _sum: { quantity: true }
     });
     const totalQuantity = totalInventory._sum.quantity || 0;
     
     // Sync ProductVariant quantity
-    await prisma.productVariant.update({
+    await tx.productVariant.update({
       where: { id: variantId },
       data: { quantity: totalQuantity }
     });
 
-    const tx = await prisma.inventoryTransaction.create({
+    const transaction = await tx.inventoryTransaction.create({
       data: {
         variantId,
         branchId,
@@ -217,7 +227,7 @@ export const inventoryService = {
 
     if (inv.quantity > 0 && inv.quantity <= inv.lowStockThreshold && type === 'DEDUCT') {
       try {
-        const variant = await prisma.productVariant.findUnique({
+        const variant = await tx.productVariant.findUnique({
           where: { id: variantId },
           include: { product: true }
         });
@@ -234,7 +244,7 @@ export const inventoryService = {
       }
     }
 
-    return { inventoryItem: inv, transaction: tx };
+    return { inventoryItem: inv, transaction };
   },
 
   // ─── Reservations ─────────────────────────────────────────────────────────────

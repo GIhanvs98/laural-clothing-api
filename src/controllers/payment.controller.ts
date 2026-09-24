@@ -15,6 +15,26 @@ export const handleWebhook = async (req: Request, res: Response, next: NextFunct
   }
 };
 
+export const handlePaymentReturn = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const orderId = req.query.orderId as string;
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    res.redirect(`${frontendUrl}/checkout/success?orderNumber=${orderId}`);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const handlePaymentCancel = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const orderId = req.query.orderId as string;
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    res.redirect(`${frontendUrl}/checkout/failed?orderNumber=${orderId}`);
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const retryPayment = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const orderNumber = req.params.orderNumber as string;
