@@ -172,13 +172,13 @@ const PORT = process.env.PORT || 5000;
 
 app.listen(PORT as number, '0.0.0.0', async () => {
   logger.info(`Server is running in ${process.env.NODE_ENV || "development"} mode on port ${PORT}`);
-  try {
-    await RoleService.seedDefaultRolesAndPermissions();
-    await SettingService.seedDefaultSettings();
-    logger.info("Default roles & permissions verified/seeded successfully.");
-  } catch (err) {
-    logger.error("Failed to seed default roles and permissions on startup", err);
-  }
+  // try {
+  //   await RoleService.seedDefaultRolesAndPermissions();
+  //   await SettingService.seedDefaultSettings();
+  //   logger.info("Default roles & permissions verified/seeded successfully.");
+  // } catch (err) {
+  //   logger.error("Failed to seed default roles and permissions on startup", err);
+  // }
 
   // Register background cron jobs
   registerScheduledJobs();
