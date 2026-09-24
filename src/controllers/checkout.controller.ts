@@ -80,7 +80,7 @@ export const initiateCheckout = async (req: Request, res: Response) => {
       }
     }
 
-    if (customer.isGuest) {
+    if (customer.isGuest && paymentMethod?.toLowerCase() !== 'koko') {
       const { verificationToken } = req.body;
       if (!verificationToken) {
         return res.status(403).json({ error: 'Phone number verification is required for guest checkout' });
