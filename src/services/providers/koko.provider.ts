@@ -6,12 +6,14 @@ export class KokoProvider {
   private apiUrl = process.env.KOKO_API_URL || 'https://qaapi.paykoko.com';
   
   private formatKey(key: string, type: 'PRIVATE' | 'PUBLIC'): string {
-    key = key.replace(/\\n/g, '\n').trim();
-    if (key && !key.includes('-----BEGIN')) {
-      const formattedKey = key.match(/.{1,64}/g)?.join('\n') || key;
-      return `-----BEGIN ${type === 'PRIVATE' ? 'RSA PRIVATE' : 'PUBLIC'} KEY-----\n${formattedKey}\n-----END ${type === 'PRIVATE' ? 'RSA PRIVATE' : 'PUBLIC'} KEY-----`;
+    if (!key) return key;
+    if (key.includes('-----BEGIN')) {
+        return key.replace(/\\n/g, '\n').trim();
     }
-    return key;
+    // Strip all whitespace and literal '\n' strings
+    const stripped = key.replace(/\\n/g, '').replace(/\s+/g, '');
+    const formattedKey = stripped.match(/.{1,64}/g)?.join('\n') || stripped;
+    return `-----BEGIN ${type === 'PRIVATE' ? 'RSA PRIVATE' : 'PUBLIC'} KEY-----\n${formattedKey}\n-----END ${type === 'PRIVATE' ? 'RSA PRIVATE' : 'PUBLIC'} KEY-----`;
   }
 
   private get privateKey(): string {

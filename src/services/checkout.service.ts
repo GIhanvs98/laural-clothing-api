@@ -288,12 +288,13 @@ export const checkoutService = {
       await alertService.sendFraudAlert(order.orderNumber, fraudEvaluation.fraudScore, fraudEvaluation.riskLevel, fraudEvaluation.fraudSignals, cartId);
     }
 
+    // 5. Initiate Payment
+    const paymentInfo = await paymentService.initiatePayment(order.id, paymentMethod || 'COD');
+
+    // Only delete the guest cart AFTER successful payment initiation
     if (isGuest) {
       await redisClient.del(`cart:${cartId}`);
     }
-
-    // 5. Initiate Payment
-    const paymentInfo = await paymentService.initiatePayment(order.id, paymentMethod || 'COD');
 
     // 6. Trigger Notification
     try {
