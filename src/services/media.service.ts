@@ -1,24 +1,23 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { MediaFile } from "@prisma/client";
 import prisma from '../config/prisma';
-import { randomUUID } from "crypto";
+import fs from 'fs/promises';
+import path from 'path';
 
-const BUCKET_NAME = process.env.AWS_S3_BUCKET_NAME || "laural-media-bucket";
-
-// Initialize S3 Client
-// If the environment variables are not set, it will fallback to mock values to prevent crashing during local dev
-const s3Client = new S3Client({
-  region: process.env.AWS_S3_REGION || process.env.AWS_REGION || "ap-southeast-1",
-  endpoint: process.env.AWS_S3_ENDPOINT || undefined,
-  credentials: {
-    accessKeyId: process.env.AWS_S3_ACCESS_KEY_ID || process.env.AWS_ACCESS_KEY_ID || "MOCK_ACCESS_KEY",
-    secretAccessKey: process.env.AWS_S3_SECRET_ACCESS_KEY || process.env.AWS_SECRET_ACCESS_KEY || "MOCK_SECRET_KEY"
-  },
-  forcePathStyle: true,
-});
+// Define the root uploads directory
+export const UPLOADS_DIR = path.resolve(process.cwd(), process.env.STORAGE_PATH || 'uploads');
 
 export const mediaService = {
+  /**
+   * Ensure uploads directory exists
+   */
+  async ensureUploadsDir(): Promise<void> {
+    try {
+      await fs.access(UPLOADS_DIR);
+    } catch {
+      await fs.mkdir(UPLOADS_DIR, { recursive: true });
+    }
+  },
+
   /**
    * List all media files
    */
@@ -44,44 +43,8 @@ export const mediaService = {
   },
 
   /**
-   * Generate a Presigned URL for frontend upload
-   */
-  async generatePresignedUrl(filename: string, contentType: string, folder: string = "Uncategorized"): Promise<{ url: string, key: string, publicUrl: string }> {
-    const fileExtension = filename.split('.').pop();
-    const uniqueId = randomUUID();
-    const key = `${folder}/${uniqueId}.${fileExtension}`;
-
-    const command = new PutObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: key,
-      ContentType: contentType,
-      // ACL: 'public-read' // Only if bucket supports ACLs
-    });
-
-    // URL expires in 5 minutes
-    const url = await getSignedUrl(s3Client, command, { expiresIn: 300 });
-    
-    // Use a relative path so the frontend's rewrites handle routing to the correct API base
-    const publicUrl = `/api/v1/media/view?key=${encodeURIComponent(key)}`;
-
-    return { url, key, publicUrl };
-  },
-
-  /**
-   * Generate a temporary Read-Only Presigned URL for viewing assets
-   */
-  async getPresignedReadUrl(key: string): Promise<string> {
-    const command = new GetObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: key,
-    });
-
-    // Valid for 5 minutes
-    return getSignedUrl(s3Client, command, { expiresIn: 300 });
-  },
-
-  /**
-   * Confirm upload and save to Database
+   * Save file and Create Media Record
+   * The actual file is handled by multer, we just need to register it in DB and move it if necessary
    */
   async createMediaRecord(data: {
     name: string;
@@ -104,15 +67,14 @@ export const mediaService = {
     const media = await prisma.mediaFile.findUnique({ where: { id } });
     if (!media) throw new Error("Media file not found");
 
-    // Attempt to delete from S3
+    // Attempt to delete from local disk
     try {
-      const command = new DeleteObjectCommand({
-        Bucket: BUCKET_NAME,
-        Key: media.key
-      });
-      await s3Client.send(command);
-    } catch (error) {
-      console.warn("Failed to delete from S3, continuing with DB deletion:", error);
+      const filePath = path.join(UPLOADS_DIR, media.key);
+      await fs.unlink(filePath);
+    } catch (error: any) {
+      if (error.code !== 'ENOENT') {
+         console.warn("Failed to delete local file, continuing with DB deletion:", error);
+      }
     }
 
     // Delete from DB
@@ -120,69 +82,74 @@ export const mediaService = {
   },
 
   /**
-   * Sync from S3 Bucket
-   * Pulls all files from the S3 bucket and registers them in the database if missing
+   * Sync from Local Directory
+   * Pulls all files from the local uploads folder and registers them in the database if missing
    */
-  async syncS3Files(): Promise<{ added: number }> {
-    let continuationToken: string | undefined = undefined;
+  async syncLocalFiles(): Promise<{ added: number }> {
+    await this.ensureUploadsDir();
     let addedCount = 0;
 
-    do {
-      const command: any = new ListObjectsV2Command({
-        Bucket: BUCKET_NAME,
-        ContinuationToken: continuationToken,
-      });
-
-      const response: any = await s3Client.send(command);
-
-      if (response.Contents) {
-        const keys = response.Contents.map((item: any) => item.Key).filter(Boolean);
-        if (keys.length > 0) {
-          // Check if files already exist in DB
-          const existingFiles = await prisma.mediaFile.findMany({
-            where: { key: { in: keys } },
-            select: { key: true }
-          });
-          const existingKeys = new Set(existingFiles.map(f => f.key));
-
-          const newItems = response.Contents.filter((item: any) => item.Key && !existingKeys.has(item.Key));
-
-          if (newItems.length > 0) {
-            const createData = newItems.map((item: any) => {
-              const parts = item.Key.split('/');
-              const filename = parts.pop() || item.Key;
-              const folder = parts.length > 0 ? parts.join('/') : 'Uncategorized';
-              
-              const ext = filename.split('.').pop()?.toLowerCase();
-              let type = 'image/jpeg';
-              if (ext === 'png') type = 'image/png';
-              if (ext === 'webp') type = 'image/webp';
-              if (ext === 'svg') type = 'image/svg+xml';
-              if (ext === 'mp4') type = 'video/mp4';
-
-              const publicUrl = `/api/v1/media/view?key=${encodeURIComponent(item.Key)}`;
-
-              return {
-                name: filename,
-                type,
-                folder,
-                size: item.Size || 0,
-                url: publicUrl,
-                key: item.Key
-              };
-            });
-
-            await prisma.mediaFile.createMany({
-              data: createData,
-              skipDuplicates: true
-            });
-
-            addedCount += newItems.length;
-          }
+    async function walkDir(dir: string): Promise<string[]> {
+      let results: string[] = [];
+      const list = await fs.readdir(dir);
+      for (const file of list) {
+        const filePath = path.join(dir, file);
+        const stat = await fs.stat(filePath);
+        if (stat && stat.isDirectory()) {
+          results = results.concat(await walkDir(filePath));
+        } else {
+          results.push(filePath);
         }
       }
-      continuationToken = response.NextContinuationToken;
-    } while (continuationToken);
+      return results;
+    }
+
+    const allFiles = await walkDir(UPLOADS_DIR);
+    
+    const existingFiles = await prisma.mediaFile.findMany({
+      select: { key: true }
+    });
+    const existingKeys = new Set(existingFiles.map(f => f.key));
+
+    const createData = [];
+
+    for (const filePath of allFiles) {
+      // Relative path from UPLOADS_DIR
+      const relativeKey = path.relative(UPLOADS_DIR, filePath).split(path.sep).join('/');
+      
+      if (!existingKeys.has(relativeKey)) {
+        const stat = await fs.stat(filePath);
+        const parts = relativeKey.split('/');
+        const filename = parts.pop() || relativeKey;
+        const folder = parts.length > 0 ? parts.join('/') : 'Uncategorized';
+        
+        const ext = filename.split('.').pop()?.toLowerCase();
+        let type = 'image/jpeg';
+        if (ext === 'png') type = 'image/png';
+        if (ext === 'webp') type = 'image/webp';
+        if (ext === 'svg') type = 'image/svg+xml';
+        if (ext === 'mp4') type = 'video/mp4';
+
+        const publicUrl = `/api/v1/media/view?key=${encodeURIComponent(relativeKey)}`;
+
+        createData.push({
+          name: filename,
+          type,
+          folder,
+          size: stat.size,
+          url: publicUrl,
+          key: relativeKey
+        });
+      }
+    }
+
+    if (createData.length > 0) {
+      await prisma.mediaFile.createMany({
+        data: createData,
+        skipDuplicates: true
+      });
+      addedCount = createData.length;
+    }
 
     return { added: addedCount };
   }

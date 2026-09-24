@@ -3,54 +3,11 @@ import { Prisma } from '@prisma/client';
 import { productWithVariantsSelect } from '../dto/product.dto';
 import { withCache, invalidateCache } from '../utils/cache.util';
 import { inventoryService } from './inventory.service';
-import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-
-const s3Client = new S3Client({
-  region: process.env.AWS_S3_REGION || 'auto',
-  endpoint: process.env.AWS_S3_ENDPOINT,
-  credentials: {
-    accessKeyId: process.env.AWS_S3_ACCESS_KEY_ID || '',
-    secretAccessKey: process.env.AWS_S3_SECRET_ACCESS_KEY || '',
-  },
-  forcePathStyle: true,
-});
 
 export async function signImageUrl(url: string | null): Promise<string | null> {
-  if (!url) return null;
-  
-  const endpointUrl = process.env.AWS_S3_ENDPOINT || '';
-  let endpointHostname = '';
-  try {
-    if (endpointUrl) {
-      endpointHostname = new URL(endpointUrl).hostname;
-    }
-  } catch (e) {
-    // Ignore invalid URL
-  }
-  
-  if (!url.includes(endpointHostname) && !url.includes(endpointUrl)) return url;
-  
-  try {
-    const bucket = process.env.AWS_S3_BUCKET_NAME || '';
-    const urlObj = new URL(url);
-    let key = urlObj.pathname.substring(1); // remove leading slash
-    if (key.startsWith(bucket + '/')) {
-      key = key.substring(bucket.length + 1);
-    }
-    
-    const command = new GetObjectCommand({
-      Bucket: bucket,
-      Key: key,
-    });
-    
-    // AWS Signature V4 maximum expiration is 7 days (604800 seconds).
-    // This perfectly solves the Next.js ISR (1 hour) expiration race condition!
-    return await getSignedUrl(s3Client, command, { expiresIn: 604800 });
-  } catch (error) {
-    console.error('Failed to sign URL:', error);
-    return url;
-  }
+  // S3 has been removed; media is served locally or statically.
+  // Return the original URL directly.
+  return url;
 }
 
 async function processProductImageUrls(product: any) {
