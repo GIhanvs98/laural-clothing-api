@@ -130,6 +130,12 @@ export const checkoutService = {
       where: { phone: customerData.phone },
     });
 
+    if (!customer && customerData.email) {
+      customer = await prisma.customer.findUnique({
+        where: { email: customerData.email },
+      });
+    }
+
     if (!customer) {
       customer = await prisma.customer.create({
         data: {
@@ -141,10 +147,14 @@ export const checkoutService = {
         },
       });
     } else if (customerData.email && !customer.email) {
-      customer = await prisma.customer.update({
-        where: { id: customer.id },
-        data: { email: customerData.email },
-      });
+      try {
+        customer = await prisma.customer.update({
+          where: { id: customer.id },
+          data: { email: customerData.email },
+        });
+      } catch (e) {
+        // Ignore if email is taken by another account to prevent checkout failure
+      }
     }
 
     // 2. Calculation
