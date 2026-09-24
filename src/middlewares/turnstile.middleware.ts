@@ -22,6 +22,7 @@ export const verifyTurnstile = async (req: Request, res: Response, next: NextFun
     }
 
     const token = req.body.turnstileToken;
+    console.log(`[Turnstile] Received token of length: ${token ? token.length : 0} for IP ${req.ip}`);
 
     if (!token) {
       return res.status(403).json({ 
@@ -30,14 +31,14 @@ export const verifyTurnstile = async (req: Request, res: Response, next: NextFun
       });
     }
 
+    const formData = new URLSearchParams();
+    formData.append('secret', secret);
+    formData.append('response', token);
+    if (req.ip) formData.append('remoteip', req.ip);
+
     const response = await fetch(VERIFY_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        secret,
-        response: token,
-        remoteip: req.ip,
-      }),
+      body: formData,
     });
 
     const data = await response.json();
