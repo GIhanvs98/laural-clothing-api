@@ -95,7 +95,8 @@ app.use(cors({
       process.env.ADMIN_URL
     ].filter(Boolean) as string[];
     
-    if (allowed.includes(origin) || origin.endsWith('.up.railway.app')) {
+    if (allowed.includes(origin) || origin.endsWith('.up.railway.app') || 
+        (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL.replace('https://', 'https://www.'))) {
       callback(null, true);
     } else {
       callback(null, false);
