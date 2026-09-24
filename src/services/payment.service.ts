@@ -2,7 +2,10 @@ import prisma from '../config/prisma';
 
 export const paymentService = {
   async initiatePayment(orderId: string, method: string) {
-    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    const order = await prisma.order.findUnique({ 
+      where: { id: orderId },
+      include: { customer: true }
+    });
     if (!order) throw new Error('Order not found');
 
     const setting = await prisma.setting.findUnique({ where: { key: 'PAYMENT_METHODS' } });
@@ -39,10 +42,12 @@ export const paymentService = {
       const cancelUrl = `${baseUrl}/api/payments/cancel?orderId=${order.orderNumber}`;
       const responseUrl = `${baseUrl}/api/payments/webhook/koko`;
       
+      const shippingAddr = order.shippingAddress as any;
       const customer = {
-         firstName: 'Customer', // Would get from order.customer if populated
-         lastName: 'Name',
-         email: 'customer@example.com' 
+         firstName: order.customer?.firstName || shippingAddr?.firstName || 'Customer',
+         lastName: order.customer?.lastName || shippingAddr?.lastName || 'Name',
+         email: order.customer?.email || 'customer@example.com',
+         phone: order.customer?.phone || shippingAddr?.phone || '0700000000'
       };
 
       const kokoData = await kokoProvider.createPaymentParams(
