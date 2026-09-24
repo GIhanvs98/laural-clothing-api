@@ -1,5 +1,31 @@
 import { Request, Response } from "express";
-import { mediaService } from "../services/media.service";
+import { mediaService, UPLOADS_DIR } from "../services/media.service";
+import path from "path";
+import fs from "fs";
+import multer from "multer";
+import { randomUUID } from "crypto";
+
+// Ensure uploads dir exists before setting up multer
+mediaService.ensureUploadsDir().catch(console.error);
+
+// Set up multer storage
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const folder = req.body.folder || 'Uncategorized';
+    const destDir = path.join(UPLOADS_DIR, folder);
+    
+    // Ensure the folder exists
+    fs.mkdirSync(destDir, { recursive: true });
+    cb(null, destDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueId = randomUUID();
+    const ext = path.extname(file.originalname);
+    cb(null, `${uniqueId}${ext}`);
+  }
+});
+
+export const uploadMiddleware = multer({ storage });
 
 export const getMediaFiles = async (req: Request, res: Response) => {
   try {
@@ -16,24 +42,27 @@ export const getMediaFiles = async (req: Request, res: Response) => {
   }
 };
 
-export const getPresignedUrl = async (req: Request, res: Response) => {
-  try {
-    const { filename, contentType, folder } = req.body;
-    if (!filename || !contentType) {
-      return res.status(400).json({ error: "Filename and contentType are required" });
-    }
-
-    const data = await mediaService.generatePresignedUrl(filename, contentType, folder);
-    res.json(data);
-  } catch (error: any) {
-    console.error(error);
-    res.status(500).json({ error: error.message });
-  }
-};
-
 export const createMediaRecord = async (req: Request, res: Response) => {
   try {
-    const record = await mediaService.createMediaRecord(req.body);
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+
+    const folder = req.body.folder || 'Uncategorized';
+    const filename = req.file.filename;
+    const key = `${folder}/${filename}`;
+    const publicUrl = `/api/v1/media/view?key=${encodeURIComponent(key)}`;
+
+    const data = {
+      name: req.file.originalname,
+      type: req.file.mimetype,
+      folder,
+      size: req.file.size,
+      url: publicUrl,
+      key
+    };
+
+    const record = await mediaService.createMediaRecord(data);
     res.status(201).json(record);
   } catch (error: any) {
     console.error(error);
@@ -59,21 +88,32 @@ export const viewMediaFile = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Media key is required" });
     }
 
-    const signedUrl = await mediaService.getPresignedReadUrl(key);
-    // Redirect the client transparently to the signed S3 URL
-    res.redirect(302, signedUrl);
+    // Security: Prevent directory traversal
+    const safeKey = path.normalize(key).replace(/^(\.\.(\/|\\|$))+/, '');
+    const absolutePath = path.join(UPLOADS_DIR, safeKey);
+
+    // Check if the path is still within UPLOADS_DIR
+    if (!absolutePath.startsWith(UPLOADS_DIR)) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    if (fs.existsSync(absolutePath)) {
+      res.sendFile(absolutePath);
+    } else {
+      res.status(404).json({ error: "File not found" });
+    }
   } catch (error: any) {
     console.error(error);
-    res.status(500).json({ error: "Failed to generate media URL" });
+    res.status(500).json({ error: "Failed to serve media file" });
   }
 };
 
-export const syncS3 = async (req: Request, res: Response) => {
+export const syncLocal = async (req: Request, res: Response) => {
   try {
-    const result = await mediaService.syncS3Files();
+    const result = await mediaService.syncLocalFiles();
     res.status(200).json(result);
   } catch (error: any) {
     console.error(error);
-    res.status(500).json({ error: error.message || "Failed to sync S3 files" });
+    res.status(500).json({ error: error.message || "Failed to sync local files" });
   }
 };

@@ -1,5 +1,4 @@
 import { exec, spawn } from "child_process";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import fs from "fs";
 import path from "path";
 import util from "util";
@@ -89,31 +88,16 @@ export const dbBackupService = {
       await gpgEncrypt(gpgKey, backupFilePath, encryptedFilePath);
       logger.info(`[DBBackup] Encryption complete: ${encryptedFilePath}`);
 
-      // 3. Upload to S3 with server-side encryption
-      logger.info(`[DBBackup] Uploading to S3 bucket ${bucketName}`);
-      const s3Client = new S3Client({
-        region: process.env.AWS_REGION || "ap-southeast-1",
-        credentials: {
-          accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-        }
-      });
-
-      const fileStream = fs.createReadStream(encryptedFilePath);
-      const s3Key = `backups/${encryptedFileName}`;
+      // 3. Move to local storage directory instead of S3
+      logger.info(`[DBBackup] Storing backup locally`);
+      const backupDir = path.resolve(process.cwd(), process.env.STORAGE_PATH || 'uploads', 'backups');
+      if (!fs.existsSync(backupDir)) {
+        fs.mkdirSync(backupDir, { recursive: true });
+      }
+      const destPath = path.join(backupDir, encryptedFileName);
+      fs.copyFileSync(encryptedFilePath, destPath);
       
-      await s3Client.send(new PutObjectCommand({
-        Bucket: bucketName,
-        Key: s3Key,
-        Body: fileStream,
-        ServerSideEncryption: "AES256", // Double-layer: GPG + S3 SSE
-        Metadata: {
-          "backup-timestamp": timestamp,
-          "encryption": "gpg-aes256",
-        },
-      } as any));
-      
-      const successMsg = `✅ *DB Backup Success* — \`${s3Key}\` uploaded to S3 at ${new Date().toUTCString()}`;
+      const successMsg = `✅ *DB Backup Success* — \`${encryptedFileName}\` saved locally at ${new Date().toUTCString()}`;
       logger.info(`[DBBackup] ${successMsg}`);
       await sendSlackAlert(successMsg);
     } catch (error: any) {
