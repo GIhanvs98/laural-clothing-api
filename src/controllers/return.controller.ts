@@ -66,3 +66,16 @@ export const updateReturnStatus = async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+export const processBulkManualReturns = async (req: Request, res: Response) => {
+  try {
+    const { branchId, items } = req.body;
+    if (!branchId || !items || !items.length) {
+      return res.status(400).json({ error: 'branchId and items are required' });
+    }
+    const data = await returnService.processBulkManualReturns(branchId, items);
+    res.status(200).json(data);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+};

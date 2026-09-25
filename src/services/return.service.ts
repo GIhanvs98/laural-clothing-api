@@ -1,4 +1,5 @@
 import prisma from '../config/prisma';
+import { inventoryService } from './inventory.service';
 
 export const returnService = {
   verifyOrderForReturn: async (orderNumber: string, email: string) => {
@@ -277,5 +278,37 @@ export const returnService = {
     }
 
     return updated;
+  },
+
+  processBulkManualReturns: async (branchId: string, items: { variantId: string, quantity: number, condition: string, notes?: string }[]) => {
+    return prisma.$transaction(async (tx) => {
+      for (const item of items) {
+        const variant = await tx.productVariant.findUnique({
+          where: { id: item.variantId }
+        });
+        if (!variant) throw new Error(`Variant ${item.variantId} not found`);
+
+        if (item.condition === 'GOOD') {
+          await inventoryService.adjustStock({
+            variantId: variant.id,
+            branchId,
+            type: 'RECEIVE',
+            quantity: item.quantity,
+            reason: item.notes || 'Manual Bulk Return - Restock',
+            reference: 'MANUAL_RETURN'
+          }, tx);
+        } else if (item.condition === 'DAMAGED') {
+          await inventoryService.adjustStock({
+            variantId: variant.id,
+            branchId,
+            type: 'DEDUCT',
+            quantity: item.quantity,
+            reason: item.notes || 'Damaged Write-Off',
+            reference: 'MANUAL_RETURN_DAMAGED'
+          }, tx);
+        }
+      }
+      return { success: true };
+    });
   }
 };
