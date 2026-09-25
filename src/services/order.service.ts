@@ -413,7 +413,7 @@ export const orderService = {
             variant: {
               include: {
                 product: {
-                  select: { id: true, name: true, slug: true, images: true }
+                  select: { id: true, name: true, slug: true }
                 }
               }
             }
