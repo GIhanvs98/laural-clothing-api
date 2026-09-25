@@ -404,6 +404,34 @@ export const orderService = {
     return order;
   },
 
+  async getOrderConfirmation(orderNumber: string) {
+    const order = await prisma.order.findUnique({
+      where: { orderNumber },
+      include: {
+        items: {
+          include: {
+            variant: {
+              include: {
+                product: {
+                  select: { id: true, name: true, slug: true, images: true }
+                }
+              }
+            }
+          }
+        },
+        customer: {
+          select: { firstName: true, lastName: true, email: true, phone: true }
+        }
+      }
+    });
+
+    if (!order) {
+      throw new Error("Order not found");
+    }
+
+    return order;
+  },
+
   async trackOrder(orderNumber: string, phone: string) {
     const order = await prisma.order.findUnique({
       where: { orderNumber },

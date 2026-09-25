@@ -118,7 +118,11 @@ export const initiateCheckout = async (req: Request, res: Response) => {
     res.status(201).json(order);
   } catch (error: any) {
     console.error("CHECKOUT 500 ERROR: ", error);
-    fs.appendFileSync('checkout-error.log', new Date().toISOString() + ': ' + (error.stack || error.message) + '\n');
+    try {
+      fs.appendFileSync('checkout-error.log', new Date().toISOString() + ': ' + (error.stack || error.message) + '\n');
+    } catch (fsError) {
+      console.error("Failed to write to checkout-error.log:", fsError);
+    }
     res.status(500).json({ error: error.message });
   }
 };

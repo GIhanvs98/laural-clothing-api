@@ -127,6 +127,21 @@ export const refundOrder = async (req: Request, res: Response) => {
   }
 };
 
+export const getOrderConfirmation = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+    if (!orderNumber) {
+      return res.status(400).json({ error: 'Order number is required' });
+    }
+
+    const order = await orderService.getOrderConfirmation(orderNumber as string);
+    res.json(order);
+  } catch (error: any) {
+    console.error(error);
+    res.status(404).json({ error: error.message || 'Order not found' });
+  }
+};
+
 export const trackOrder = async (req: Request, res: Response) => {
   try {
     const { orderNumber, phone } = req.query;
