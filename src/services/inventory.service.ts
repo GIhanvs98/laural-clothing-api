@@ -186,20 +186,30 @@ export const inventoryService = {
     const delta = type === 'RECEIVE' ? Math.abs(quantity) : -Math.abs(quantity);
 
     // Ensure stock doesn't go below 0 for DEDUCT
+    let inv;
     if (type === 'DEDUCT') {
-      const currentItem = await tx.inventoryItem.findUnique({
+      const result = await tx.inventoryItem.updateMany({
+        where: { 
+          variantId, 
+          branchId,
+          quantity: { gte: Math.abs(quantity) }
+        },
+        data: { quantity: { decrement: Math.abs(quantity) } }
+      });
+      if (result.count === 0) {
+        throw new Error(`Insufficient stock for deduction. Variant: ${variantId}`);
+      }
+      
+      inv = await tx.inventoryItem.findUnique({
         where: { variantId_branchId: { variantId, branchId } }
       });
-      if (!currentItem || currentItem.quantity < Math.abs(quantity)) {
-        throw new Error('Insufficient stock for deduction');
-      }
+    } else {
+      inv = await tx.inventoryItem.upsert({
+        where: { variantId_branchId: { variantId, branchId } },
+        create: { variantId, branchId, quantity: Math.max(0, delta) },
+        update: { quantity: { increment: delta } },
+      });
     }
-
-    const inv = await tx.inventoryItem.upsert({
-      where: { variantId_branchId: { variantId, branchId } },
-      create: { variantId, branchId, quantity: Math.max(0, delta) },
-      update: { quantity: { increment: delta } },
-    });
 
     // Recalculate total quantity for this variant across all branches
     const totalInventory = await tx.inventoryItem.aggregate({

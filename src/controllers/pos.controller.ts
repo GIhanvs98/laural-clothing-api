@@ -217,6 +217,12 @@ export const processPosOrder = async (req: Request, res: Response) => {
         items: {
           create: orderItems
         }
+      },
+      include: {
+        items: {
+          include: { variant: { include: { product: true } } }
+        },
+        customer: true
       }
     });
     
@@ -229,37 +235,15 @@ export const processPosOrder = async (req: Request, res: Response) => {
     }
     
     // 4. Deduct Inventory
+    const { inventoryService } = require('../services/inventory.service');
     for (const item of items) {
-      // Deduct from branch inventory
-      const inventory = await prisma.inventoryItem.findUnique({
-        where: { variantId_branchId: { variantId: item.variantId, branchId } }
-      });
-
-      if (inventory) {
-        await prisma.inventoryItem.update({
-          where: { id: inventory.id },
-          data: { quantity: { decrement: item.qty } }
-        });
-      } else {
-        await prisma.inventoryItem.create({
-          data: {
-            variantId: item.variantId,
-            branchId,
-            quantity: -item.qty
-          }
-        });
-      }
-      
-      // Log transaction
-      await prisma.inventoryTransaction.create({
-        data: {
-          variantId: item.variantId,
-          branchId,
-          type: 'SALE',
-          quantityChange: -item.qty,
-          reference: order.id,
-          reason: 'POS Sale'
-        }
+      await inventoryService.adjustStock({
+        variantId: item.variantId,
+        branchId,
+        type: 'DEDUCT',
+        quantity: item.qty,
+        reason: 'POS Sale',
+        reference: order.id
       });
     }
     
