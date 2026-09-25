@@ -205,7 +205,7 @@ export const orderService = {
   },
 
   async getOrders(filters: any = {}, pagination: { skip?: number; take?: number } = {}) {
-    const { status, paymentGateway, branchId, customerId, type, search } = filters;
+    const { status, paymentGateway, branchId, customerId, type, search, startDate, endDate } = filters;
     const { skip = 0, take = 20 } = pagination;
 
     const where: any = {};
@@ -225,6 +225,17 @@ export const orderService = {
         { customer: { lastName: { contains: search, mode: 'insensitive' } } },
         { customer: { phone: { contains: search, mode: 'insensitive' } } }
       ];
+    }
+    
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) where.createdAt.gte = new Date(startDate);
+      if (endDate) {
+        const end = new Date(endDate);
+        // Ensure the end date includes the entire day if it's just a date without time
+        if (endDate.length <= 10) end.setUTCHours(23, 59, 59, 999);
+        where.createdAt.lte = end;
+      }
     }
     
     // Gateway filtering: COD, BANK_TRANSFER, CARD_MANUAL for manual methods
