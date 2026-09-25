@@ -189,6 +189,16 @@ export const processPosOrder = async (req: Request, res: Response) => {
       return res.status(400).json({ error: `Branch "${branchId}" not found. Please ensure your account is assigned to a valid branch.` });
     }
 
+    // 1.8 Inventory check
+    for (const item of items) {
+      const inventory = await prisma.inventoryItem.findUnique({
+        where: { variantId_branchId: { variantId: item.variantId, branchId } }
+      });
+      if (!inventory || inventory.quantity < item.qty) {
+        return res.status(400).json({ error: `Insufficient stock for variant ${item.variantId}. Available: ${inventory?.quantity || 0}, Requested: ${item.qty}` });
+      }
+    }
+
     // 2. Create Order
     const order = await prisma.order.create({
       data: {

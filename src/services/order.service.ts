@@ -241,7 +241,16 @@ export const orderService = {
         take,
         include: {
           customer: true,
-          branch: true
+          branch: true,
+          items: {
+            include: {
+              variant: {
+                include: {
+                  product: true
+                }
+              }
+            }
+          }
         },
         orderBy: {
           createdAt: 'desc'
