@@ -162,8 +162,15 @@ export class AuthController {
 
       await AuthService.logoutUser(refreshToken, userId);
 
-      res.clearCookie("laural_access_token");
-      res.clearCookie("laural_refresh_token");
+      const isProd = process.env.NODE_ENV === "production";
+      const cookieOptions = {
+        httpOnly: true,
+        secure: isProd,
+        sameSite: isProd ? "none" as const : "lax" as const,
+      };
+
+      res.clearCookie("laural_access_token", cookieOptions);
+      res.clearCookie("laural_refresh_token", cookieOptions);
 
       res.status(200).json({
         success: true,
