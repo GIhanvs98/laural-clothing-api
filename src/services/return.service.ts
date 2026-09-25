@@ -143,7 +143,7 @@ export const returnService = {
       returns: returns.map(r => ({
         id: r.id,
         rmaId: r.rmaId,
-        orderId: r.order.orderNumber,
+        orderId: r.order?.orderNumber || null,
         customer: r.customer ? `${r.customer.firstName} ${r.customer.lastName || ''}`.trim() : 'Unknown',
         date: r.createdAt.toISOString().split('T')[0],
         status: r.status,
@@ -182,6 +182,11 @@ export const returnService = {
                     product: true
                   }
                 }
+              }
+            },
+            variant: {
+              include: {
+                product: true
               }
             }
           }
@@ -227,6 +232,9 @@ export const returnService = {
           });
           
           if (retItem) {
+            const variantId = retItem.variantId || retItem.orderItem?.variantId;
+            if (!variantId) continue;
+            
             // Find default warehouse or online branch for return
             const branch = await prisma.branch.findFirst({
               where: { type: 'WAREHOUSE' }
@@ -235,7 +243,7 @@ export const returnService = {
             if (branch) {
               await prisma.inventoryTransaction.create({
                 data: {
-                  variantId: retItem.orderItem.variantId,
+                  variantId: variantId,
                   branchId: branch.id,
                   type: 'RETURN',
                   quantityChange: retItem.quantity,
@@ -246,7 +254,7 @@ export const returnService = {
               
               // Also update InventoryItem count
               const invItem = await prisma.inventoryItem.findUnique({
-                where: { variantId_branchId: { variantId: retItem.orderItem.variantId, branchId: branch.id } }
+                where: { variantId_branchId: { variantId: variantId, branchId: branch.id } }
               });
               
               if (invItem) {
@@ -257,7 +265,7 @@ export const returnService = {
               } else {
                 await prisma.inventoryItem.create({
                   data: {
-                    variantId: retItem.orderItem.variantId,
+                    variantId: variantId,
                     branchId: branch.id,
                     quantity: retItem.quantity
                   }
@@ -270,7 +278,7 @@ export const returnService = {
     }
 
     // 3. If refunded, update order status
-    if (status === 'REFUNDED') {
+    if (status === 'REFUNDED' && updated.orderId) {
       await prisma.order.update({
         where: { id: updated.orderId },
         data: { paymentStatus: 'REFUNDED' }
@@ -308,6 +316,23 @@ export const returnService = {
           }, tx);
         }
       }
+      const rmaId = `RMA-MANUAL-${Date.now()}`;
+      await tx.returnRequest.create({
+        data: {
+          rmaId,
+          status: 'RECEIVED', // Manual returns are instantly received
+          adminNote: 'Manual Bulk Return',
+          items: {
+            create: items.map(item => ({
+              variantId: item.variantId,
+              quantity: item.quantity,
+              condition: item.condition,
+              inspectionStatus: item.condition === 'DAMAGED' ? 'REJECTED' : 'APPROVED'
+            }))
+          }
+        }
+      });
+
       return { success: true };
     });
   }

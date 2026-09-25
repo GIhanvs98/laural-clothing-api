@@ -7,6 +7,7 @@ const productVariantSchema = z.object({
   size: z.string().optional().nullable(),
   color: z.string().optional().nullable(),
   sku: z.string().optional().nullable(),
+  barcode: z.string().optional().nullable(),
   price: z.number(),
   salePrice: z.number().optional().nullable(),
   quantity: z.number(),
@@ -19,6 +20,7 @@ const productVariantSchema = z.object({
 const productSchema = z.object({
   name: z.string().min(1, 'Product name is required'),
   slug: z.string().optional(),
+  barcode: z.string().optional().nullable(),
   description: z.string().optional(),
   categoryId: z.string().optional(),
   collectionId: z.string().optional(),

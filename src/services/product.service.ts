@@ -45,6 +45,7 @@ export class ProductService {
                 { name: { contains: search, mode: 'insensitive' } },
                 { description: { contains: search, mode: 'insensitive' } },
                 { variants: { some: { sku: { contains: search, mode: 'insensitive' } } } },
+                { variants: { some: { barcode: { contains: search, mode: 'insensitive' } } } },
               ],
             }
           : {}),
@@ -116,9 +117,21 @@ export class ProductService {
   }
 
   async getProductBySku(sku: string) {
-    return withCache(`product:sku:${sku}`, 900, async () => {
-      const variant = await prisma.productVariant.findUnique({
-        where: { sku },
+    return withCache(`product:sku:${sku.toLowerCase()}`, 900, async () => {
+      const searchSku = sku.trim();
+      const lowerSku = searchSku.toLowerCase();
+      
+      const variant = await prisma.productVariant.findFirst({
+        where: { 
+          OR: [
+            { sku: { equals: searchSku, mode: 'insensitive' } }, 
+            { barcode: { equals: searchSku, mode: 'insensitive' } },
+            { sku: { startsWith: searchSku, mode: 'insensitive' } },
+            { barcode: { startsWith: searchSku, mode: 'insensitive' } },
+            { id: { startsWith: lowerSku } },
+            { productId: { startsWith: lowerSku } }
+          ] 
+        },
         select: { product: { select: productWithVariantsSelect } },
       });
       return variant && variant.product ? processProductImageUrls(variant.product) : null;
