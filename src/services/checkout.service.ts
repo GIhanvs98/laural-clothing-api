@@ -1,4 +1,5 @@
 import prisma from '../config/prisma';
+import { AppError } from '../middlewares/errorHandler';
 import { redisClient } from '../config/redis';
 import { inventoryService } from './inventory.service';
 import { paymentService } from './payment.service';
@@ -18,7 +19,7 @@ export const checkoutService = {
     if (isGuest) {
       const redisKey = `cart:${cartId}`; // cartId is sessionId for guests
       const cartStr = await redisClient.get(redisKey);
-      if (!cartStr) throw new Error('Guest cart not found');
+      if (!cartStr) throw new AppError('Guest cart not found', 400);
       cart = JSON.parse(cartStr);
     } else {
       cart = await prisma.cart.findUnique({
@@ -33,11 +34,11 @@ export const checkoutService = {
           },
         },
       });
-      if (!cart) throw new Error('Cart not found');
+      if (!cart) throw new AppError('Cart not found', 400);
     }
 
     if (!cart || cart.items.length === 0) {
-      throw new Error('Cart is empty or not found');
+      throw new AppError('Cart is empty or not found', 400);
     }
 
     let subtotal = 0;
@@ -70,7 +71,7 @@ export const checkoutService = {
     if (isGuest) {
       const redisKey = `cart:${cartId}`;
       const cartStr = await redisClient.get(redisKey);
-      if (!cartStr) throw new Error('Guest cart not found');
+      if (!cartStr) throw new AppError('Guest cart not found', 400);
       cart = JSON.parse(cartStr);
 
       // Re-hydrate allowedPaymentMethods from DB - Redis cache may be stale if product was updated
@@ -104,11 +105,11 @@ export const checkoutService = {
           },
         },
       });
-      if (!cart) throw new Error('Cart not found');
+      if (!cart) throw new AppError('Cart not found', 400);
     }
 
     if (!cart || cart.items.length === 0) {
-      throw new Error('Cart is empty or not found');
+      throw new AppError('Cart is empty or not found', 400);
     }
 
     if (paymentMethod) {
@@ -118,7 +119,7 @@ export const checkoutService = {
           // DB stores methods as PascalCase ("COD","Koko"), paymentMethod from client may be lowercase
           const normalised = allowedMethods.map((m: string) => m.toLowerCase());
           if (!normalised.includes(paymentMethod.toLowerCase())) {
-            throw new Error(`Payment method '${paymentMethod}' is not allowed for some items in your cart.`);
+            throw new AppError(`Payment method '${paymentMethod}' is not allowed for some items in your cart.`, 400);
           }
         }
       }
@@ -167,7 +168,7 @@ export const checkoutService = {
     if (pointsToRedeem && pointsToRedeem > 0 && !isGuest && customer) {
       const loyaltyAccount = await prisma.loyaltyAccount.findUnique({ where: { customerId: customer.id } });
       if (!loyaltyAccount || loyaltyAccount.points < pointsToRedeem) {
-        throw new Error('Insufficient loyalty points');
+        throw new AppError('Insufficient loyalty points', 400);
       }
 
       // Convert points to LKR (assume 1 point = 1 LKR for now, could be dynamic)
@@ -195,7 +196,7 @@ export const checkoutService = {
 
     if (fraudEvaluation.riskLevel === 'BLOCKED') {
       await alertService.sendFraudAlert(cartId, fraudEvaluation.fraudScore, fraudEvaluation.riskLevel, fraudEvaluation.fraudSignals, cartId);
-      throw new Error('Checkout blocked due to high fraud risk.');
+      throw new AppError('Checkout blocked due to high fraud risk.', 400);
     }
 
     // 3. Setup Branch and Pre-Check Stock
@@ -208,7 +209,7 @@ export const checkoutService = {
     }
     
     if (!onlineBranch) {
-      throw new Error('No valid branch found to fulfill the order.');
+      throw new AppError('No valid branch found to fulfill the order.', 400);
     }
 
     // Pre-check stock before doing anything else
@@ -217,7 +218,7 @@ export const checkoutService = {
         where: { variantId_branchId: { variantId: item.variantId, branchId: onlineBranch.id } }
       });
       if (!inv || inv.quantity < item.quantity) {
-        throw new Error(`Insufficient stock for item: ${item.variant?.product?.name || item.variantId}. Available: ${inv?.quantity || 0}, Requested: ${item.quantity}`);
+        throw new AppError(`Insufficient stock for item: ${item.variant?.product?.name || item.variantId}. Available: ${inv?.quantity || 0}, Requested: ${item.quantity}`, 400);
       }
     }
 
@@ -229,7 +230,7 @@ export const checkoutService = {
         data: {
           orderNumber,
           customerId: customer!.id,
-          status: 'PENDING',
+          status: (paymentMethod?.toLowerCase() === 'cod') ? 'PENDING' : 'AWAITING_PAYMENT',
           paymentMethod: paymentMethod || 'COD',
           paymentStatus: 'UNPAID',
           subtotal: totals.subtotal,

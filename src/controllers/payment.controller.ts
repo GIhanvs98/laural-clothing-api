@@ -45,6 +45,14 @@ export const retryPayment = async (req: Request, res: Response, next: NextFuncti
       return res.status(404).json({ error: 'Order not found' });
     }
 
+    await prisma.order.update({
+      where: { id: order.id },
+      data: {
+        paymentMethod: paymentMethod,
+        status: (paymentMethod?.toLowerCase() === 'cod') ? 'PENDING' : 'AWAITING_PAYMENT'
+      }
+    });
+
     const { paymentService } = require('../services/payment.service');
     const paymentInfo = await paymentService.initiatePayment(order.id, paymentMethod);
 

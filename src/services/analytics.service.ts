@@ -93,7 +93,7 @@ export const analyticsService = {
 
     const orderBaseFilter = {
       ...branchFilter,
-      status: { notIn: ['CANCELLED', 'REFUNDED'] }
+      status: { notIn: ['CANCELLED', 'REFUNDED', 'AWAITING_PAYMENT'] }
     };
 
     // Run aggregations concurrently to speed up dashboard

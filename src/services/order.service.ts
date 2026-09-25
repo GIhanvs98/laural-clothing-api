@@ -209,7 +209,11 @@ export const orderService = {
     const { skip = 0, take = 20 } = pagination;
 
     const where: any = {};
-    if (status) where.status = status;
+    if (status) {
+      where.status = status;
+    } else {
+      where.status = { not: 'AWAITING_PAYMENT' };
+    }
     if (branchId) where.branchId = branchId;
     if (customerId) where.customerId = customerId;
     if (type) where.type = type;
