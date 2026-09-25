@@ -320,6 +320,7 @@ export const orderService = {
         customerAddress3: shippingAddress?.addressLine3 || '',
         city: shippingAddress?.city || 'Unknown',
         district: shippingAddress?.district || shippingAddress?.city || 'Unknown',
+        nearestCity: shippingAddress?.nearestCity,
         weightKg: weightKg || 1.0,
         codAmount: (order.paymentMethod?.toUpperCase() === 'COD') ? Number(order.total) : 0
       };

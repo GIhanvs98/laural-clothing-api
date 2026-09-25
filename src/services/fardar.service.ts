@@ -9,6 +9,7 @@ export interface ShippingDetails {
   customerAddress3: string;
   city: string;
   district: string;
+  nearestCity?: string;
   weightKg?: number;
   codAmount?: number;
 }
@@ -52,7 +53,7 @@ export const FardarService = {
         .join(', ');
       
       data.append('recipient_address', fullAddress);
-      data.append('recipient_city', details.city);
+      data.append('recipient_city', details.nearestCity || details.city);
       data.append('amount', (details.codAmount || 0).toString());
       data.append('exchange', '0');
 

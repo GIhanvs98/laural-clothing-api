@@ -340,6 +340,7 @@ model Address {
   city         String
   district     String?
   postalCode   String?
+  nearestCity  String?
   phone        String
   isDefault    Boolean  @default(false)
   createdAt    DateTime @default(now())
