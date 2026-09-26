@@ -71,6 +71,49 @@ export const returnService = {
     const count = await prisma.returnRequest.count();
     const rmaId = `RET-${10000 + count + 1}`;
 
+    // ── Duplicate guard ─────────────────────────────────────────────────────
+    // Check if each item already has an active (non-REJECTED/REFUNDED) RMA that
+    // covers its full requested quantity to prevent double returns/exchanges.
+    for (const item of items) {
+      const orderItem = await prisma.orderItem.findUnique({
+        where: { id: item.orderItemId },
+        include: {
+          returnItems: {
+            include: {
+              returnRequest: { select: { status: true } }
+            }
+          }
+        }
+      });
+      if (!orderItem) throw new Error(`Order item ${item.orderItemId} not found`);
+
+      // Sum quantity already in active (non-terminal) RMAs
+      const activeReturnedQty = orderItem.returnItems
+        .filter(ri => !['REJECTED', 'REFUNDED'].includes(ri.returnRequest?.status || ''))
+        .reduce((acc, ri) => acc + ri.quantity, 0);
+
+      const alreadyFullyReturnedQty = orderItem.returnItems
+        .filter(ri => ri.returnRequest?.status === 'REFUNDED')
+        .reduce((acc, ri) => acc + ri.quantity, 0);
+
+      const availableForReturn = orderItem.quantity - alreadyFullyReturnedQty - activeReturnedQty;
+
+      if (item.quantity > availableForReturn) {
+        if (availableForReturn <= 0) {
+          throw new Error(
+            `Item has already been fully returned or has a pending return/exchange in progress. ` +
+            `Please wait for the existing RMA to be processed before submitting a new one.`
+          );
+        } else {
+          throw new Error(
+            `You requested to return ${item.quantity} units, but only ${availableForReturn} unit(s) are available for return ` +
+            `(some are already in active RMA or fully refunded).`
+          );
+        }
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     // Calculate initial refund amount based on items
     let totalRefund = 0;
     for (const item of items) {
@@ -104,7 +147,7 @@ export const returnService = {
     return returnRequest;
   },
 
-  getReturns: async (page: number, limit: number, search?: string, status?: string, customerId?: string) => {
+  getReturns: async (page: number, limit: number, search?: string, status?: string, customerId?: string, origin?: string, type?: string) => {
     const skip = (page - 1) * limit;
 
     let whereClause: any = {};
@@ -116,8 +159,40 @@ export const returnService = {
       whereClause.customerId = customerId;
     }
     
+    if (origin && origin !== 'ALL') {
+      if (origin === 'POS') {
+        whereClause.OR = [
+          ...(whereClause.OR || []),
+          { order: { type: 'POS' } },
+          { order: { orderNumber: { startsWith: 'POS' } } },
+          { reason: { contains: 'POS', mode: 'insensitive' } }
+        ];
+      } else if (origin === 'COURIER') {
+        whereClause.AND = [
+          ...(whereClause.AND || []),
+          { OR: [{ order: { type: { not: 'POS' } } }, { orderId: null }] },
+          { NOT: { order: { orderNumber: { startsWith: 'POS' } } } }
+        ];
+      }
+    }
+
+    if (type && type !== 'ALL') {
+      if (type === 'EXCHANGE') {
+        whereClause.OR = [
+          ...(whereClause.OR || []),
+          { reason: { contains: 'EXCHANGE', mode: 'insensitive' } },
+          { customerNote: { contains: 'EXCHANGE', mode: 'insensitive' } }
+        ];
+      } else if (type === 'REFUND') {
+        whereClause.NOT = [
+          { reason: { contains: 'EXCHANGE', mode: 'insensitive' } }
+        ];
+      }
+    }
+
     if (search) {
       whereClause.OR = [
+        ...(whereClause.OR || []),
         { rmaId: { contains: search, mode: 'insensitive' } },
         { customer: { firstName: { contains: search, mode: 'insensitive' } } },
         { customer: { lastName: { contains: search, mode: 'insensitive' } } },
@@ -140,15 +215,22 @@ export const returnService = {
     ]);
 
     return {
-      returns: returns.map(r => ({
-        id: r.id,
-        rmaId: r.rmaId,
-        orderId: r.order?.orderNumber || null,
-        customer: r.customer ? `${r.customer.firstName} ${r.customer.lastName || ''}`.trim() : 'Unknown',
-        date: r.createdAt.toISOString().split('T')[0],
-        status: r.status,
-        amount: r.refundAmount
-      })),
+      returns: returns.map(r => {
+        const isPos = r.order?.type === 'POS' || r.order?.orderNumber?.startsWith('POS') || r.reason?.toLowerCase().includes('pos');
+        const isExchange = r.reason?.toLowerCase().includes('exchange') || r.customerNote?.toLowerCase().includes('exchange');
+        return {
+          id: r.id,
+          rmaId: r.rmaId,
+          orderId: r.order?.orderNumber || null,
+          customer: r.customer ? `${r.customer.firstName} ${r.customer.lastName || ''}`.trim() : 'Walk-in / POS Customer',
+          date: r.createdAt.toISOString().split('T')[0],
+          status: r.status,
+          amount: r.refundAmount,
+          origin: isPos ? 'POS' : 'COURIER',
+          type: isExchange ? 'EXCHANGE' : 'REFUND',
+          reason: r.reason
+        };
+      }),
       total,
       page,
       totalPages: Math.ceil(total / limit)
@@ -288,13 +370,20 @@ export const returnService = {
     return updated;
   },
 
-  processBulkManualReturns: async (branchId: string, items: { variantId: string, quantity: number, condition: string, notes?: string }[]) => {
+  processBulkManualReturns: async (branchId: string, items: { variantId: string, quantity: number, condition: string, notes?: string, unitPrice?: number }[]) => {
     return prisma.$transaction(async (tx) => {
+      let totalRefundAmount = 0;
+
       for (const item of items) {
         const variant = await tx.productVariant.findUnique({
-          where: { id: item.variantId }
+          where: { id: item.variantId },
+          include: { product: true }
         });
         if (!variant) throw new Error(`Variant ${item.variantId} not found`);
+
+        // Use provided unit price, or fall back to variant price
+        const unitPrice = item.unitPrice ?? (variant as any).price ?? 0;
+        totalRefundAmount += unitPrice * item.quantity;
 
         if (item.condition === 'GOOD') {
           await inventoryService.adjustStock({
@@ -306,6 +395,7 @@ export const returnService = {
             reference: 'MANUAL_RETURN'
           }, tx);
         } else if (item.condition === 'DAMAGED') {
+          // Damaged goods: write off from inventory (deduct)
           await inventoryService.adjustStock({
             variantId: variant.id,
             branchId,
@@ -315,13 +405,16 @@ export const returnService = {
             reference: 'MANUAL_RETURN_DAMAGED'
           }, tx);
         }
+        // QUARANTINE condition: log only, no stock movement until inspected
       }
+
       const rmaId = `RMA-MANUAL-${Date.now()}`;
       await tx.returnRequest.create({
         data: {
           rmaId,
           status: 'RECEIVED', // Manual returns are instantly received
           adminNote: 'Manual Bulk Return',
+          refundAmount: totalRefundAmount, // Persist calculated amount
           items: {
             create: items.map(item => ({
               variantId: item.variantId,
@@ -333,7 +426,7 @@ export const returnService = {
         }
       });
 
-      return { success: true };
+      return { success: true, refundAmount: totalRefundAmount };
     });
   }
 };

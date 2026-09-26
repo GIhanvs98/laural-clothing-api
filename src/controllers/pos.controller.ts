@@ -76,39 +76,10 @@ export const getSessionSummary = async (req: Request, res: Response) => {
 
 export const generateVoucher = async (req: Request, res: Response) => {
   try {
-    const { branchId, returnedItems, value } = req.body;
-    
-    // 1. Restock items via InventoryTransaction
-    if (returnedItems && returnedItems.length > 0) {
-      for (const item of returnedItems) {
-        await prisma.inventoryTransaction.create({
-          data: {
-            variantId: item.variantId,
-            branchId,
-            type: 'RETURN',
-            quantityChange: item.qty,
-            reason: 'POS Exchange Return'
-          }
-        });
-        
-        // Update stock
-        await prisma.inventoryItem.update({
-          where: { variantId_branchId: { variantId: item.variantId, branchId } },
-          data: { quantity: { increment: item.qty } }
-        });
-      }
-    }
-    
-    // 2. Generate Voucher
-    const code = `VCH-${value}-${Math.floor(Math.random() * 10000)}`;
-    const voucher = await prisma.exchangeVoucher.create({
-      data: {
-        code,
-        value,
-        status: 'ACTIVE'
-      }
-    });
-    
+    const { branchId, returnedItems, value, orderId } = req.body;
+
+    // Delegate fully to posService which handles restock + voucher creation atomically
+    const voucher = await posService.generateVoucher({ branchId, returnedItems, value, orderId });
     res.status(201).json(voucher);
   } catch (error) {
     console.error(error);

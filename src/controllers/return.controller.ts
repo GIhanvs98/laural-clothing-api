@@ -34,8 +34,10 @@ export const getReturns = async (req: Request, res: Response) => {
     const search = req.query.search as string;
     const status = req.query.status as string;
     const customerId = req.query.customerId as string;
+    const origin = req.query.origin as string;
+    const type = req.query.type as string;
 
-    const data = await returnService.getReturns(page, limit, search, status, customerId);
+    const data = await returnService.getReturns(page, limit, search, status, customerId, origin, type);
     res.json(data);
   } catch (error: any) {
     res.status(500).json({ error: error.message });

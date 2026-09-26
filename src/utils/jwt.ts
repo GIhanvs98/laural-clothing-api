@@ -28,6 +28,7 @@ export interface JWTPayload {
   roles: string[];
   permissions: string[];
   fingerprint?: string;
+  branchId?: string | null;
   iat?: number;
   exp?: number;
 }

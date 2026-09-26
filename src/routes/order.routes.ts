@@ -14,6 +14,7 @@ router.get('/confirmation/:orderNumber', orderController.getOrderConfirmation);
 router.get('/:id', authenticateJWT, requirePermission("orders:view"), orderController.getOrderById);
 router.patch('/:id/status', authenticateJWT, requirePermission("orders:edit_status"), auditLog('Order', 'UPDATE'), orderController.updateOrderStatus);
 router.post('/:id/refund', authenticateJWT, requirePermission("orders:cancel_refund"), auditLog('Order', 'UPDATE'), orderController.refundOrder);
+router.post('/:id/refund/partial', authenticateJWT, requirePermission("orders:cancel_refund"), auditLog('Order', 'UPDATE'), orderController.refundPartialOrder);
 router.post('/fardar-webhook', orderController.fardarWebhook);
 
 export default router;

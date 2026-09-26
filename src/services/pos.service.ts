@@ -2,47 +2,34 @@ import prisma from '../config/prisma';
 
 export const posService = {
   async openSession(data: { branchId: string; terminalId: string; userId: string; openingFloat: number }) {
-    // Upsert branch and terminal to prevent FK constraint violations
-    const branch = await prisma.branch.upsert({
-      where: { code: data.branchId },
-      update: {},
-      create: {
-        code: data.branchId,
-        name: "Main Branch",
-        type: "RETAIL"
-      }
-    });
+    // 1. Verify the branch exists by its ID (branchId is a real UUID, not a code)
+    const branch = await prisma.branch.findUnique({ where: { id: data.branchId } });
+    if (!branch) throw new Error(`Branch not found: ${data.branchId}`);
 
-    const user = await prisma.user.upsert({
-      where: { id: data.userId },
-      update: {},
-      create: {
-        id: data.userId,
-        email: `pos_${data.userId}@example.com`,
-        password: "mockpassword",
-        name: "POS Cashier",
-        status: "ACTIVE"
-      }
-    });
+    // 2. Ensure the user record exists (lookup only, users are managed by auth)
+    const user = await prisma.user.findUnique({ where: { id: data.userId } });
+    if (!user) throw new Error(`User not found: ${data.userId}`);
 
+    // 3. Upsert the terminal — create if new, otherwise just update its branch link
     const terminal = await prisma.posTerminal.upsert({
       where: { id: data.terminalId },
       update: { branchId: branch.id },
       create: {
         id: data.terminalId,
-        name: "POS Terminal 1",
+        name: `POS Terminal ${data.terminalId}`,
         branchId: branch.id
       }
     });
 
+    // 4. Check if session already open
     const existing = await prisma.posSession.findFirst({
       where: { terminalId: terminal.id, status: 'OPEN' }
     });
-    
     if (existing) {
       throw new Error('Terminal already has an open session.');
     }
 
+    // 5. Create the session
     return await prisma.posSession.create({
       data: {
         branchId: branch.id,
@@ -50,7 +37,8 @@ export const posService = {
         userId: user.id,
         openingFloat: data.openingFloat,
         status: 'OPEN'
-      }
+      },
+      include: { branch: true, terminal: true, user: true }
     });
   },
 

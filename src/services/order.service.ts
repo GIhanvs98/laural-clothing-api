@@ -420,6 +420,40 @@ export const orderService = {
     return order;
   },
 
+  async refundPartialOrder(id: string, itemsToReturn: { variantId: string, qty: number }[], refundMethod?: string) {
+    let order = await prisma.order.findUnique({
+      where: { id },
+      include: { items: true }
+    });
+
+    if (!order) throw new Error("Order not found");
+
+    const branchId = order.branchId || (await prisma.branch.findFirst({ where: { OR: [{ name: 'Online' }, { code: 'ONLINE' }] } }))?.id;
+    if (branchId) {
+      for (const returnedItem of itemsToReturn) {
+        await inventoryService.adjustStock({
+          variantId: returnedItem.variantId,
+          branchId,
+          type: 'RECEIVE',
+          quantity: returnedItem.qty,
+          reason: `Partial Refund (${refundMethod || 'MANUAL'}) Restock`,
+          reference: order.id
+        });
+      }
+    }
+
+    // Mark as partially refunded
+    order = await prisma.order.update({
+      where: { id },
+      data: {
+        paymentStatus: 'PARTIALLY_REFUNDED'
+      },
+      include: { items: true }
+    });
+
+    return order;
+  },
+
   async getOrderConfirmation(orderNumber: string) {
     const order = await prisma.order.findUnique({
       where: { orderNumber },

@@ -150,10 +150,27 @@ export class ProductService {
       data.slug = slug;
     }
 
+    const generateUniqueBarcode = async (): Promise<string> => {
+      for (let i = 0; i < 10; i++) {
+        const code = `20${Math.floor(1000000000 + Math.random() * 9000000000)}`;
+        const existing = await prisma.productVariant.findUnique({ where: { barcode: code } });
+        if (!existing) return code;
+      }
+      return `20${Date.now().toString().slice(-10)}`;
+    };
+
     // collectionId is on the CollectionProduct join table, not a direct Product scalar
     const { collectionId, ...productData } = data;
     
     const variantsData = productData.variants?.create || [];
+    
+    // Auto-generate missing barcodes for new variants
+    for (const v of variantsData) {
+      if (!v.barcode || typeof v.barcode !== 'string' || v.barcode.trim() === '') {
+        v.barcode = await generateUniqueBarcode();
+      }
+    }
+
     // Extract inventory intent keyed by variant SKU+size+color for reliable post-create matching
     const pendingInventory: { key: string; items: any[] }[] = [];
 
@@ -210,13 +227,16 @@ export class ProductService {
     const { collectionId, ...productData } = data;
 
     if (productData.variants?.create) {
-      productData.variants.create.forEach((v: any) => {
+      for (const v of productData.variants.create) {
+        if (!v.barcode || typeof v.barcode !== 'string' || v.barcode.trim() === '') {
+          v.barcode = `20${Math.floor(1000000000 + Math.random() * 9000000000)}`;
+        }
         if (v.inventoryItems?.create && v.inventoryItems.create.length > 0) {
           const key = `${v.sku || ''}|${v.size || ''}|${v.color || ''}`;
           pendingCreateInventory.push({ key, items: v.inventoryItems.create });
         }
         delete v.inventoryItems;
-      });
+      }
     }
 
     if (productData.variants?.update) {

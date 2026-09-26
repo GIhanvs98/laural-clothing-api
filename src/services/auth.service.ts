@@ -252,6 +252,7 @@ export class AuthService {
       roles,
       permissions,
       fingerprint: input.fingerprint,
+      branchId: user.branchId || null,
     });
 
     const refreshToken = generateRefreshToken(user.id);
