@@ -152,7 +152,7 @@ export class ProductService {
 
     const generateUniqueBarcode = async (): Promise<string> => {
       for (let i = 0; i < 10; i++) {
-        const code = `20${Math.floor(1000000000 + Math.random() * 9000000000)}`;
+        const code = `20${Math.floor(10000000000 + Math.random() * 89999999999)}`;
         const existing = await prisma.productVariant.findUnique({ where: { barcode: code } });
         if (!existing) return code;
       }
@@ -229,7 +229,7 @@ export class ProductService {
     if (productData.variants?.create) {
       for (const v of productData.variants.create) {
         if (!v.barcode || typeof v.barcode !== 'string' || v.barcode.trim() === '') {
-          v.barcode = `20${Math.floor(1000000000 + Math.random() * 9000000000)}`;
+          v.barcode = `20${Math.floor(10000000000 + Math.random() * 89999999999)}`;
         }
         if (v.inventoryItems?.create && v.inventoryItems.create.length > 0) {
           const key = `${v.sku || ''}|${v.size || ''}|${v.color || ''}`;
@@ -242,6 +242,12 @@ export class ProductService {
     if (productData.variants?.update) {
       productData.variants.update.forEach((v: any) => {
         const variantId = v.where?.id;
+        
+        // Auto-generate barcode if it's missing during update
+        if (v.data && (!v.data.barcode || typeof v.data.barcode !== 'string' || v.data.barcode.trim() === '')) {
+          v.data.barcode = `20${Math.floor(10000000000 + Math.random() * 89999999999)}`;
+        }
+
         if (variantId && v.data?.inventoryItems) {
            if (v.data.inventoryItems.create) {
              pendingUpdateInventory.push({ variantId, creates: v.data.inventoryItems.create });

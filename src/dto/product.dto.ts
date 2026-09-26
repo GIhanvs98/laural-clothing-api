@@ -11,6 +11,7 @@ export const variantBasicSelect = {
   quantity: true,
   color: true,
   size: true,
+  barcode: true,
   featuredImage: true,
   gallery: true,
   inventoryItems: {
