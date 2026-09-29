@@ -49,26 +49,36 @@ export const orderService = {
         where: { phone: data.customer.phone }
       });
 
+      if (!customer && data.customer.email) {
+        customer = await tx.customer.findUnique({
+          where: { email: data.customer.email }
+        });
+      }
+
       if (!customer) {
         customer = await tx.customer.create({
           data: {
             phone: data.customer.phone,
-            email: data.customer.email,
+            email: data.customer.email || null,
             firstName: data.customer.firstName,
             lastName: data.customer.lastName,
             isGuest: true
           }
         });
       } else {
-        // Update name if missing
-        if (!customer.firstName || !customer.lastName) {
+        let updateData: any = {};
+        if (!customer.firstName && data.customer.firstName) updateData.firstName = data.customer.firstName;
+        if (!customer.lastName && data.customer.lastName) updateData.lastName = data.customer.lastName;
+        
+        if (!customer.email && data.customer.email) {
+          const emailTaken = await tx.customer.findUnique({ where: { email: data.customer.email } });
+          if (!emailTaken) updateData.email = data.customer.email;
+        }
+
+        if (Object.keys(updateData).length > 0) {
           customer = await tx.customer.update({
             where: { id: customer.id },
-            data: {
-              firstName: customer.firstName || data.customer.firstName,
-              lastName: customer.lastName || data.customer.lastName,
-              email: customer.email || data.customer.email,
-            }
+            data: updateData
           });
         }
       }
