@@ -1,12 +1,10 @@
 import prisma from './src/config/prisma';
-
-async function run() {
-  const count = await prisma.order.count();
-  console.log('Total orders:', count);
-  const recent = await prisma.order.findMany({
-    take: 5,
-    orderBy: { createdAt: 'desc' }
-  });
-  console.log('Recent orders:', recent);
+async function main() {
+  const orders = await prisma.order.findMany({ select: { id: true, status: true, customerId: true, paymentStatus: true }});
+  const loyaltyAccounts = await prisma.loyaltyAccount.findMany();
+  const loyaltyTransactions = await prisma.loyaltyTransaction.findMany();
+  console.log('Orders:', orders);
+  console.log('Loyalty Accounts:', loyaltyAccounts);
+  console.log('Loyalty Transactions:', loyaltyTransactions);
 }
-run().catch(console.error).finally(() => prisma.$disconnect());
+main().catch(console.error).finally(() => prisma.$disconnect());

@@ -171,7 +171,7 @@ export const orderService = {
       const total = subtotal + shippingFee + tax - discount;
 
       // 5. Create Order
-      const paymentStatus = data.paymentMethod === 'COD' ? 'UNPAID' : 'PAID';
+      const paymentStatus = data.paymentMethod === 'COD' ? 'COD_PENDING' : 'PAID';
 
       const order = await tx.order.create({
         data: {
@@ -197,6 +197,19 @@ export const orderService = {
           customer: true
         }
       });
+
+      if (paymentStatus === 'PAID') {
+        await tx.paymentTransaction.create({
+          data: {
+            orderId: order.id,
+            customerId: order.customerId,
+            gateway: data.paymentMethod || 'MANUAL',
+            method: data.paymentMethod || 'MANUAL',
+            amount: order.total,
+            status: 'Paid'
+          }
+        });
+      }
 
       // Trigger Notification
       try {
@@ -359,6 +372,22 @@ export const orderService = {
         console.error("Failed to create Fardar shipment (Network/Internal):", err);
         throw new Error(err.message || "Failed to create Fardar shipment");
       }
+    }
+
+    if (status === 'DELIVERED' && order.paymentMethod?.toUpperCase() === 'COD' && order.paymentStatus !== 'PAID') {
+      dataToUpdate.paymentStatus = 'PAID';
+      
+      // Log payment transaction for COD
+      await prisma.paymentTransaction.create({
+        data: {
+          orderId: order.id,
+          customerId: order.customerId,
+          gateway: 'COD',
+          method: 'COD',
+          amount: order.total,
+          status: 'Paid'
+        }
+      });
     }
 
     order = await prisma.order.update({

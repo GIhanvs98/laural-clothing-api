@@ -62,7 +62,7 @@ export const loyaltyService = {
     if (existingTx) return;
 
     const rules = await loyaltyService.getLoyaltyRules();
-    const pointsToEarn = Math.floor(order.subtotal * rules.earnRate);
+    const pointsToEarn = Math.floor(order.total * rules.earnRate);
 
     if (pointsToEarn <= 0) return;
 
@@ -122,7 +122,7 @@ export const loyaltyService = {
         });
 
         if (!existingTx) {
-          const points = Math.floor(order.subtotal * rules.earnRate);
+          const points = Math.floor(order.total * rules.earnRate);
           totalPointsToMigrate += points;
           
           await (prisma as any).loyaltyTransaction.create({

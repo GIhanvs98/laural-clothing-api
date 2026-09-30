@@ -232,7 +232,7 @@ export const checkoutService = {
           customerId: customer!.id,
           status: (paymentMethod?.toLowerCase() === 'cod') ? 'PENDING' : 'AWAITING_PAYMENT',
           paymentMethod: paymentMethod || 'COD',
-          paymentStatus: 'UNPAID',
+          paymentStatus: (paymentMethod?.toLowerCase() === 'cod') ? 'COD_PENDING' : 'UNPAID',
           subtotal: totals.subtotal,
           shippingFee: totals.shippingFee,
           tax: totals.tax,
