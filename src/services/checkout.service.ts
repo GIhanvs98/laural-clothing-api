@@ -255,6 +255,18 @@ export const checkoutService = {
         },
       });
 
+      // Log initial payment transaction
+      await tx.paymentTransaction.create({
+        data: {
+          orderId: createdOrder.id,
+          customerId: customer!.id,
+          gateway: paymentMethod || 'COD',
+          method: paymentMethod || 'COD',
+          amount: totals.total,
+          status: 'Pending'
+        }
+      });
+
       // Deduct Loyalty Points
       if (loyaltyAccountToUpdate && pointsToRedeem && pointsToRedeem > 0) {
         await tx.loyaltyTransaction.create({

@@ -270,6 +270,18 @@ export const posService = {
           }
         });
       }
+
+      // 5. Log Payment Transaction
+      await tx.paymentTransaction.create({
+        data: {
+          orderId: order.id,
+          customerId: order.customerId,
+          gateway: data.paymentMethod,
+          method: data.paymentMethod,
+          amount: calculatedTotal,
+          status: isKoko ? 'Pending' : 'Paid'
+        }
+      });
       
       return order;
     }, {

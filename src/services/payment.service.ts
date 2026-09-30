@@ -99,16 +99,28 @@ export const paymentService = {
       
       const dbStatus = verification.status === 'SUCCESS' ? 'Paid' : (verification.status === 'FAILED' || verification.status === 'FAILURE' ? 'Failed' : 'Pending');
 
-      await prisma.paymentTransaction.create({
-        data: {
-          orderId: order.id,
-          customerId: order.customerId,
-          gateway: 'koko',
-          method: 'koko',
-          amount: order.total,
-          status: dbStatus
-        }
-      });
+      const existingTx = await prisma.paymentTransaction.findFirst({ where: { orderId: order.id } });
+      if (existingTx) {
+        await prisma.paymentTransaction.update({
+          where: { id: existingTx.id },
+          data: {
+            status: dbStatus,
+            gateway: 'koko',
+            method: 'koko'
+          }
+        });
+      } else {
+        await prisma.paymentTransaction.create({
+          data: {
+            orderId: order.id,
+            customerId: order.customerId,
+            gateway: 'koko',
+            method: 'koko',
+            amount: order.total,
+            status: dbStatus
+          }
+        });
+      }
 
       if (verification.status === 'SUCCESS') {
         await prisma.order.update({
@@ -183,17 +195,29 @@ export const paymentService = {
     
     const dbStatus = statusMap[payload.status] || 'Pending';
 
-    // Log the transaction
-    await prisma.paymentTransaction.create({
-      data: {
-        orderId: order.id,
-        customerId: order.customerId,
-        gateway: provider,
-        method: provider,
-        amount: order.total,
-        status: dbStatus
-      }
-    });
+    // Log or update the transaction
+    const existingTx = await prisma.paymentTransaction.findFirst({ where: { orderId: order.id } });
+    if (existingTx) {
+      await prisma.paymentTransaction.update({
+        where: { id: existingTx.id },
+        data: {
+          status: dbStatus,
+          gateway: provider,
+          method: provider
+        }
+      });
+    } else {
+      await prisma.paymentTransaction.create({
+        data: {
+          orderId: order.id,
+          customerId: order.customerId,
+          gateway: provider,
+          method: provider,
+          amount: order.total,
+          status: dbStatus
+        }
+      });
+    }
 
     if (payload.status === 'SUCCESS') {
       await prisma.order.update({
