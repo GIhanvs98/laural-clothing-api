@@ -5,16 +5,16 @@ export function normalizePhone(phone: string): string {
   let cleaned = phone.replace(/[\s\-\(\)]/g, '');
 
   if (cleaned.startsWith('+94')) {
-    return `0${cleaned.substring(3)}`;
-  }
-  
-  if (cleaned.startsWith('94') && cleaned.length === 11) {
-    return `0${cleaned.substring(2)}`;
-  }
-  
-  if (cleaned.length === 9 && !cleaned.startsWith('0')) {
-    return `0${cleaned}`;
+    cleaned = `0${cleaned.substring(3)}`;
+  } else if (cleaned.startsWith('94') && cleaned.length === 11) {
+    cleaned = `0${cleaned.substring(2)}`;
+  } else if (cleaned.length === 9 && !cleaned.startsWith('0')) {
+    cleaned = `0${cleaned}`;
   }
 
   return cleaned;
+}
+
+export function isValidPhone(phone: string): boolean {
+  return /^0\d{9}$/.test(phone);
 }
